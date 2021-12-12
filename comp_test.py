@@ -1,9 +1,10 @@
 import typing as typ
 
 import gates_nmos
+import latch
 import spice
+from component import Component, Node
 from netlist import NetList
-from component import Node
 
 
 def calculate_piecewise_inputs(
@@ -34,15 +35,14 @@ def calculate_piecewise_inputs(
     return pieces
 
 
-if __name__ == '__main__':
-    and_gate = gates_nmos.AndGate(None, 'main')
-    netlist = NetList.make(and_gate)
+def test_binary_gate(gate: Component) -> None:
+    netlist = NetList.make(gate)
     print(netlist)
     print(netlist.dump_info())
 
     piecewise_inputs = calculate_piecewise_inputs([
-        and_gate.nodes['a'],
-        and_gate.nodes['b']
+        gate.nodes['a'],
+        gate.nodes['b'],
     ], 0.5, [
         (0, [0, 0]),
         (3, [0, 5]),
@@ -57,14 +57,97 @@ if __name__ == '__main__':
         'testing', netlist,
         piecewise_inputs,
         output_nodes=[
-            and_gate.nodes['out'], and_gate.nodes['a'],
-            and_gate.nodes['b']
+            gate.nodes['out'], gate.nodes['a'],
+            gate.nodes['b']
         ],
         time_step='1ns',
-        time_stop='15us',
+        time_stop='17us',
         input_time_suffix='us',
     )
 
     print(spice_src)
     with open('spice_script/test2.cir', 'w') as spice_file:
         spice_file.write(spice_src)
+
+
+def test_srlatch() -> None:
+    srlatch = latch.SRLatch(None, 'main')
+    netlist = NetList.make(srlatch)
+    print(netlist)
+    print(netlist.dump_info())
+
+    piecewise_inputs = calculate_piecewise_inputs([
+        srlatch.nodes['s'],
+        srlatch.nodes['r'],
+    ], 0.5, [
+        (0, [0, 0]),
+        (3, [5, 0]),
+        (4, [0, 0]),
+        (9, [0, 5]),
+        (10, [0, 0]),
+    ])
+
+    spice_src = spice.make_spice_script(
+        'testing', netlist,
+        piecewise_inputs,
+        output_nodes=[
+            srlatch.nodes['s'], srlatch.nodes['q'],
+            srlatch.nodes['r'], srlatch.nodes['q_not']
+        ],
+        time_step='1ns',
+        time_stop='17us',
+        input_time_suffix='us',
+    )
+
+    print(spice_src)
+    with open('spice_script/test2.cir', 'w') as spice_file:
+        spice_file.write(spice_src)
+
+
+def test_dlatch() -> None:
+    dlatch = latch.DLatch(None, 'main')
+    netlist = NetList.make(dlatch)
+    print(netlist)
+    print(netlist.dump_info())
+
+    piecewise_inputs = calculate_piecewise_inputs([
+        dlatch.nodes['clock'], dlatch.nodes['in']
+    ], 0.1, [
+        (0, [0, 0]),
+        (1, [0, 5]),
+        (3, [5, 5]),
+        (4, [0, 5]),
+        (6, [0, 0]),
+        (9, [5, 0]),
+        (9.8, [0, 0]),
+    ])
+
+    spice_src = spice.make_spice_script(
+        'testing', netlist,
+        piecewise_inputs,
+        output_nodes=[
+            dlatch.nodes['out'], dlatch.nodes['not_out'],
+            dlatch.nodes['clock'], dlatch.nodes['in'],
+            # dlatch.nodes['_mid_up'], dlatch.nodes['_mid_down']
+        ],
+        time_step='1ns',
+        time_stop='17us',
+        input_time_suffix='us',
+    )
+
+    print(spice_src)
+    with open('spice_script/test2.cir', 'w') as spice_file:
+        spice_file.write(spice_src)
+
+
+TO_TEST = 'dlatch'
+
+if __name__ == '__main__':
+    if TO_TEST == 'binary':
+        test_binary_gate(gates_nmos.OrGate(None, 'main'))
+    elif TO_TEST == 'dlatch':
+        test_dlatch()
+    elif TO_TEST == 'srlatch':
+        test_srlatch()
+    else:
+        raise ValueError()

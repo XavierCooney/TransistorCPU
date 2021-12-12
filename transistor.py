@@ -35,4 +35,5 @@ class Ground(AtomicComponent):
 
     def ngspice_line(self, comp_id: str, nodes: typ.Dict[str, str]) -> str:
         # 0 voltage source = short circuit
-        return f'V{comp_id} {nodes["a"]} gnd 0'
+        # return f'V{comp_id} {nodes["a"]} gnd 0'
+        return f'R{comp_id} {nodes["a"]} gnd 0.1'

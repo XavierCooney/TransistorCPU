@@ -8,6 +8,17 @@ from component import Node
 VOLTAGE = 5
 
 
+def make_node_id(
+    netlist: NetList, node: Node,
+    special_node_groups: typ.Dict[int, str]
+) -> str:
+    if netlist.coalesced_numbering[node] in special_node_groups:
+        return special_node_groups[netlist.coalesced_numbering[node]]
+
+    node_id = f'n{netlist.coalesced_numbering[node]}'
+    return node_id
+
+
 def make_spice_script(  # TODO: this is a bit ugly...
     title: str, netlist: NetList,
     inputs: typ.Dict[Node, typ.List[typ.Tuple[float, float]]],
@@ -18,6 +29,12 @@ def make_spice_script(  # TODO: this is a bit ugly...
 ) -> str:
     segments: typ.List[str] = []
 
+    special_nodes: typ.Dict[int, str] = {}
+    for output_node in output_nodes:
+        assert netlist.coalesced_numbering[output_node] not in special_nodes
+        special_id = f'n_{output_node.name}'
+        special_nodes[netlist.coalesced_numbering[output_node]] = special_id
+
     segments.append(f'.title {title}')
     segments.append('.option TEMP=25C')
     segments.append('.include 2N7000.mod')
@@ -27,7 +44,7 @@ def make_spice_script(  # TODO: this is a bit ugly...
 
     for atomic in netlist.atomic_componenets:
         atomic_node_numbering = {
-            node_name: f'n{netlist.coalesced_numbering[node]}'
+            node_name: f'{make_node_id(netlist, node, special_nodes)}'
             for node_name, node in atomic.nodes.items()
         }
         segments.append(atomic.ngspice_line(
@@ -42,9 +59,8 @@ def make_spice_script(  # TODO: this is a bit ugly...
             for input_time, input_val in input_commands
         )
         segments.append(
-            f'V{comp_id} '
-            f'n{netlist.coalesced_numbering[input_node]} '
-            f'gnd PWL({piecewise_form})'
+            f'V{comp_id} {make_node_id(netlist, input_node, special_nodes)}'
+            f' gnd PWL({piecewise_form})'
         )
         comp_id += 1
 
@@ -53,11 +69,10 @@ def make_spice_script(  # TODO: this is a bit ugly...
 
     segments.append(
         'plot ' + ' '.join(
-            f'v(n{netlist.coalesced_numbering[output_node]})'
+            f'v({make_node_id(netlist, output_node, special_nodes)})'
             for output_node in output_nodes
         )
     )
-    segments.append('print')
 
     segments.append('.endc')
 

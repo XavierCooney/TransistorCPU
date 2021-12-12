@@ -82,7 +82,8 @@ class NetList:
 
         # ensure each node is actually doing something
         for node in netlist.nodes:
-            assert len(netlist.connected_to[node]) >= 1
+            if len(netlist.connected_to[node]) < 1:
+                raise ValueError(f'Unconnected node: {node.get_path()}')
 
         netlist.coalesce_nodes()
 
