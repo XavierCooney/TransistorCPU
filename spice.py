@@ -42,7 +42,7 @@ def make_spice_script(  # TODO: this is a bit ugly...
             for input_time, input_val in input_commands
         )
         segments.append(
-            f'v{comp_id} '
+            f'V{comp_id} '
             f'n{netlist.coalesced_numbering[input_node]} '
             f'gnd PWL({piecewise_form})'
         )
@@ -57,6 +57,7 @@ def make_spice_script(  # TODO: this is a bit ugly...
             for output_node in output_nodes
         )
     )
+    segments.append('print')
 
     segments.append('.endc')
 

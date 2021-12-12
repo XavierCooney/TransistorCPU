@@ -24,18 +24,6 @@ class NandGate(Component):
         self.connect('_gnd', ground.nodes['a'])
 
 
-class NotGateWithNand(Component):
-    node_names = ['a', 'out']
-    component_name = 'not_w_nand'
-
-    def build(self) -> None:
-        main_nand = self.add_component(NandGate(self, 'nand'))
-
-        self.connect('a', main_nand.nodes['a'])
-        self.connect('a', main_nand.nodes['b'])
-        self.connect('out', main_nand.nodes['out'])
-
-
 class NotGate(Component):
     node_names = ['a', 'out', '_gnd']
     component_name = 'not'
@@ -57,12 +45,11 @@ class AndGate(Component):
     component_name = 'and'
 
     def build(self) -> None:
-        main_nand = self.add_component(NandGate(self, 'main_nand'))
-        not_nand = self.add_component(NandGate(self, 'not_nand'))
+        nand_gate = self.add_component(NandGate(self, 'nand'))
+        not_gate = self.add_component(NotGate(self, 'not'))
 
-        self.connect('a', main_nand.nodes['a'])
-        self.connect('b', main_nand.nodes['b'])
-        self.connect('_nand_res', main_nand.nodes['out'])
-        self.connect('_nand_res', not_nand.nodes['a'])
-        self.connect('_nand_res', not_nand.nodes['b'])
-        self.connect('out', not_nand.nodes['out'])
+        self.connect('a', nand_gate.nodes['a'])
+        self.connect('b', nand_gate.nodes['b'])
+        self.connect('_nand_res', nand_gate.nodes['out'])
+        self.connect('_nand_res', not_gate.nodes['a'])
+        self.connect('out', not_gate.nodes['out'])

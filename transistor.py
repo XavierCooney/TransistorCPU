@@ -23,7 +23,7 @@ class PullUpResistor(AtomicComponent):
     def build(self) -> None: pass
 
     def ngspice_line(self, comp_id: str, nodes: typ.Dict[str, str]) -> str:
-        PULLUP_RESISTANCE = '10k'
+        PULLUP_RESISTANCE = '5k'
         return f'R{comp_id} {nodes["a"]} vdd {PULLUP_RESISTANCE}'
 
 
