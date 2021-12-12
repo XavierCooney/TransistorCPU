@@ -1,0 +1,5 @@
+spice64/
+__pycache__/
+.mypy_cache/
+.vscode/
+spice_script/
