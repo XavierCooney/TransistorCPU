@@ -1,10 +1,20 @@
+import os
+import subprocess
+import sys
 import typing as typ
 
+import config
 import gates_nmos
 import latch
 import spice
 from component import Component, Node
+from config import VOLTAGE
 from netlist import NetList
+
+us = 1e-6
+ns = 1e-9
+HIGH = config.VOLTAGE - 0.3
+LOW = 0.3
 
 
 def calculate_piecewise_inputs(
@@ -21,21 +31,105 @@ def calculate_piecewise_inputs(
 
         if interval_num == 0:
             for node, node_val in zip(nodes, new_interval[1]):
-                pieces[node].append((new_interval[0], node_val))
+                pieces[node].append((new_interval[0], node_val * VOLTAGE))
         else:
             old_interval = intervals[interval_num - 1]
             for node, node_val in zip(nodes, old_interval[1]):
-                pieces[node].append((new_interval[0], node_val))
+                pieces[node].append((new_interval[0], node_val * VOLTAGE))
 
             for node, node_val in zip(nodes, new_interval[1]):
                 pieces[node].append((
-                    new_interval[0] + transition_time, node_val
+                    new_interval[0] + transition_time, node_val * VOLTAGE
                 ))
 
     return pieces
 
 
-def test_binary_gate(gate: Component) -> None:
+def process_spice_output(
+    output_names: typ.List[str]
+) -> typ.Callable[[float], typ.Dict[str, float]]:
+    with open('spice_script/out.data') as out_file:
+        lines = out_file.read().split('\n')
+
+    while lines[-1] == '':
+        lines = lines[:-1]
+    lines = lines[1:]  # header row
+
+    output_data: typ.List[typ.Tuple[float, typ.List[float]]] = []
+
+    for line in lines:
+        assert len(line) == 2 * 16 * len(output_names)
+
+        segments = [
+            float(line[i * 16:(i + 1) * 16].strip())
+            for i in range(len(output_names) * 2)
+        ]
+        time = segments[0]
+        assert all(segment == time for segment in segments[::2])
+
+        output_data.append((time, segments[1::2]))
+
+    assert list(sorted(output_data)) == output_data
+
+    REQUIRED_INCREMENT = 5 * 10 ** -9  # 5 ns
+
+    def find_output_data(required_time: float) -> typ.Dict[str, float]:
+        # binary search for the data at a given time
+        start = 0
+        end = len(output_data)
+
+        while start + 1 < end:
+            mid = (start + end) // 2
+            if output_data[mid][0] < required_time:
+                start = mid
+            else:
+                end = mid
+
+        assert abs(output_data[start][0] - required_time) < REQUIRED_INCREMENT
+
+        return dict(zip(output_names, output_data[start][1]))
+
+    # reveal_type(find_output_data)
+    return find_output_data
+
+
+def run_spice_script(
+    source: str, interactive: bool,
+    outputs: typ.List[str]
+) -> typ.Callable[[float], typ.Dict[str, float]]:
+    print(source)
+
+    with open('spice_script/script.cir', 'w') as spice_file:
+        spice_file.write(source)
+
+    with open('spice_script/out.data', 'w') as out_file:
+        out_file.write('')
+
+    # TODO: *nix support for this
+    output = subprocess.check_output(
+        ['spice64\\bin\\ngspice.exe', 'script.cir'],
+        cwd=os.path.abspath('spice_script'),
+        encoding='utf-8'
+    )
+    print(output)
+
+    if not interactive:
+        output = subprocess.check_output(
+            ['spice64\\bin\\ngspice_con.exe', '-b', 'script.cir'],
+            cwd=os.path.abspath('spice_script'),
+            encoding='utf-8'
+        )
+
+        print(output)
+
+        return process_spice_output(outputs)
+    else:
+        def no_data(time: float) -> typ.NoReturn:
+            assert False
+        return no_data
+
+
+def test_binary_gate(interactive: bool, gate: Component) -> None:
     netlist = NetList.make(gate)
     print(netlist)
     print(netlist.dump_info())
@@ -45,16 +139,16 @@ def test_binary_gate(gate: Component) -> None:
         gate.nodes['b'],
     ], 0.5, [
         (0, [0, 0]),
-        (3, [0, 5]),
-        (6, [5, 5]),
-        (9, [0, 5]),
+        (3, [0, 1]),
+        (6, [1, 1]),
+        (9, [0, 1]),
         (12, [0, 0]),
     ])
 
     print(piecewise_inputs)
 
-    spice_src = spice.make_spice_script(
-        'testing', netlist,
+    spice_src, output_list = spice.make_spice_script(
+        'Binary Gate', netlist,
         piecewise_inputs,
         output_nodes=[
             gate.nodes['out'], gate.nodes['a'],
@@ -63,14 +157,13 @@ def test_binary_gate(gate: Component) -> None:
         time_step='1ns',
         time_stop='17us',
         input_time_suffix='us',
+        output_data=not interactive
     )
 
-    print(spice_src)
-    with open('spice_script/test2.cir', 'w') as spice_file:
-        spice_file.write(spice_src)
+    run_spice_script(spice_src, interactive, output_list)
 
 
-def test_srlatch() -> None:
+def test_srlatch(interactive: bool) -> None:
     srlatch = latch.SRLatch(None, 'main')
     netlist = NetList.make(srlatch)
     print(netlist)
@@ -81,14 +174,14 @@ def test_srlatch() -> None:
         srlatch.nodes['r'],
     ], 0.5, [
         (0, [0, 0]),
-        (3, [5, 0]),
+        (3, [1, 0]),
         (4, [0, 0]),
-        (9, [0, 5]),
+        (9, [0, 1]),
         (10, [0, 0]),
     ])
 
-    spice_src = spice.make_spice_script(
-        'testing', netlist,
+    spice_src, output_list = spice.make_spice_script(
+        'SR Latch', netlist,
         piecewise_inputs,
         output_nodes=[
             srlatch.nodes['s'], srlatch.nodes['q'],
@@ -97,14 +190,18 @@ def test_srlatch() -> None:
         time_step='1ns',
         time_stop='17us',
         input_time_suffix='us',
+        output_data=not interactive,
     )
 
-    print(spice_src)
-    with open('spice_script/test2.cir', 'w') as spice_file:
-        spice_file.write(spice_src)
+    check_data = run_spice_script(spice_src, interactive, output_list)
+    if not interactive:
+        assert check_data(8 * us)['q'] > HIGH
+        assert check_data(8 * us)['q_not'] < LOW
+        assert check_data(14 * us)['q'] < LOW
+        assert check_data(14 * us)['q_not'] > HIGH
 
 
-def test_dlatch() -> None:
+def test_dlatch(interactive: bool) -> None:
     dlatch = latch.DLatch(None, 'main')
     netlist = NetList.make(dlatch)
     print(netlist)
@@ -114,16 +211,16 @@ def test_dlatch() -> None:
         dlatch.nodes['clock'], dlatch.nodes['in']
     ], 0.1, [
         (0, [0, 0]),
-        (1, [0, 5]),
-        (3, [5, 5]),
-        (4, [0, 5]),
+        (1, [0, 1]),
+        (3, [1, 1]),
+        (4, [0, 1]),
         (6, [0, 0]),
-        (9, [5, 0]),
+        (9, [1, 0]),
         (9.8, [0, 0]),
     ])
 
-    spice_src = spice.make_spice_script(
-        'testing', netlist,
+    spice_src, output_list = spice.make_spice_script(
+        'D Latch', netlist,
         piecewise_inputs,
         output_nodes=[
             dlatch.nodes['out'], dlatch.nodes['not_out'],
@@ -133,21 +230,32 @@ def test_dlatch() -> None:
         time_step='1ns',
         time_stop='17us',
         input_time_suffix='us',
+        output_data=not interactive
     )
 
-    print(spice_src)
-    with open('spice_script/test2.cir', 'w') as spice_file:
-        spice_file.write(spice_src)
+    check_data = run_spice_script(spice_src, interactive, output_list)
+    if not interactive:
+        assert check_data(7 * us)['out'] > HIGH
+        assert check_data(7 * us)['not_out'] < LOW
+        assert check_data(15 * us)['out'] < LOW
+        assert check_data(15 * us)['not_out'] > HIGH
 
 
-TO_TEST = 'dlatch'
+TEST_OVERRIDE: typ.Optional[str] = sys.argv[-1] if len(sys.argv) >= 2 else None
+TEST_ALL = TEST_OVERRIDE is None
+
+tests: typ.Dict[str, typ.Callable[[bool], None]] = {
+    'dlatch': test_dlatch,
+    'srlatch': test_srlatch,
+    'nand': lambda i: test_binary_gate(i, gates_nmos.NandGate(None, 'main')),
+    'and': lambda i: test_binary_gate(i, gates_nmos.AndGate(None, 'main')),
+    'nor': lambda i: test_binary_gate(i, gates_nmos.NorGate(None, 'main')),
+    'or': lambda i: test_binary_gate(i, gates_nmos.OrGate(None, 'main')),
+}
 
 if __name__ == '__main__':
-    if TO_TEST == 'binary':
-        test_binary_gate(gates_nmos.OrGate(None, 'main'))
-    elif TO_TEST == 'dlatch':
-        test_dlatch()
-    elif TO_TEST == 'srlatch':
-        test_srlatch()
-    else:
-        raise ValueError()
+    if TEST_ALL:
+        for test_name, test in tests.items():
+            test(False)
+    elif TEST_OVERRIDE is not None:
+        tests[TEST_OVERRIDE](len(sys.argv) < 2 or sys.argv[1] != 'ni')

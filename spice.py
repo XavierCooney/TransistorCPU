@@ -2,10 +2,9 @@
 
 import typing as typ
 
-from netlist import NetList
+import config
 from component import Node
-
-VOLTAGE = 5
+from netlist import NetList
 
 
 def make_node_id(
@@ -26,19 +25,25 @@ def make_spice_script(  # TODO: this is a bit ugly...
     time_step: str = '1ns',
     time_stop: str = '5us',
     input_time_suffix: str = "us",
-) -> str:
+    output_data: bool = False
+) -> typ.Tuple[str, typ.List[str]]:  # (script, list of output names)
     segments: typ.List[str] = []
 
     special_nodes: typ.Dict[int, str] = {}
+    output_names = []
     for output_node in output_nodes:
-        assert netlist.coalesced_numbering[output_node] not in special_nodes
-        special_id = f'n_{output_node.name}'
-        special_nodes[netlist.coalesced_numbering[output_node]] = special_id
+        coalesced_id = netlist.coalesced_numbering[output_node]
+        assert coalesced_id not in special_nodes
+        special_id = f'n_{output_node.name}_{coalesced_id}'
+        output_names.append(output_node.name)
+        special_nodes[coalesced_id] = special_id
+
+    assert len(output_names) == len(set(output_names))
 
     segments.append(f'.title {title}')
     segments.append('.option TEMP=25C')
     segments.append('.include 2N7000.mod')
-    segments.append(f'Vdd vdd gnd dc {VOLTAGE}')
+    segments.append(f'Vdd vdd gnd dc {config.VOLTAGE}')
 
     comp_id = 1
 
@@ -67,15 +72,20 @@ def make_spice_script(  # TODO: this is a bit ugly...
     segments.append('.control')
     segments.append(f'tran {time_step} {time_stop}')
 
-    segments.append(
-        'plot ' + ' '.join(
-            f'v({make_node_id(netlist, output_node, special_nodes)})'
-            for output_node in output_nodes
-        )
+    plot_command_vars = ' '.join(
+        f'v({make_node_id(netlist, output_node, special_nodes)})'
+        for output_node in output_nodes
     )
+
+    segments.append('plot ' + plot_command_vars)
+
+    if output_data:
+        segments.append('set wr_vecnames')
+        segments.append(f'wrdata out.data {plot_command_vars}')
+        segments.append('quit')
 
     segments.append('.endc')
 
     segments.append('.end')
 
-    return '\n'.join(segments)
+    return '\n'.join(segments), output_names
