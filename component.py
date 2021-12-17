@@ -11,6 +11,9 @@ class Node:
     def get_path(self) -> str:
         return f'{self.component.get_path()}>{self.name}'
 
+    def __repr__(self) -> str:
+        return f'[Node @ {self.get_path()}]'
+
 
 class Component(abc.ABC):
     @property
@@ -53,6 +56,9 @@ class Component(abc.ABC):
         assert not to_node.name.startswith('_')
 
         self.nodes[from_name].connected_to.append(to_node)
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__} @ {self.get_path()}>'
 
 
 class AtomicComponent(Component):
