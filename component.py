@@ -1,6 +1,9 @@
 import abc
 import typing as typ
 
+import netlist
+import simulation
+
 
 class Node:
     def __init__(self, component: 'Component', name: str):
@@ -67,4 +70,10 @@ class AtomicComponent(Component):
 
     @abc.abstractmethod
     def ngspice_line(self, comp_id: str, nodes: typ.Dict[str, str]) -> str:
+        pass
+
+    @abc.abstractmethod
+    def make_sim_component(
+        self, nl: netlist.NetList
+    ) -> 'simulation.SimulatedComponent':
         pass

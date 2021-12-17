@@ -1,26 +1,30 @@
 import typing as typ
 from collections import defaultdict, deque
 
-from component import AtomicComponent, Component, Node
+import component as comp
 
 
 class NetList:
     def __init__(self) -> None:
-        self.atomic_componenets: typ.List[AtomicComponent] = []
-        self.nodes: typ.List[Node] = []
-        self.connections: typ.List[typ.Tuple[Node, Node]] = []
-        self.connected_to: typ.Dict[Node, typ.List[Node]] = defaultdict(list)
-        self.coalesced_nodes: typ.List[typ.List[Node]] = []
-        self.coalesced_numbering: typ.Dict[Node, int] = {}
+        self.atomic_componenets: typ.List[comp.AtomicComponent] = []
+        self.nodes: typ.List[comp.Node] = []
+        self.connections: typ.List[typ.Tuple[comp.Node, comp.Node]] = []
+        ConnectedToType = typ.Dict[comp.Node, typ.List[comp.Node]]
+        self.connected_to: ConnectedToType = defaultdict(list)
+        self.coalesced_nodes: typ.List[typ.List[comp.Node]] = []
+        self.coalesced_numbering: typ.Dict[comp.Node, int] = {}
 
-    def resolve_component(self, component: Component) -> None:
+    def resolve_component(self, component: 'comp.Component') -> None:
         for node in component.nodes.values():
             self.nodes.append(node)
 
-        if isinstance(component, AtomicComponent):
+        if isinstance(component, comp.AtomicComponent):
             self.atomic_componenets.append(component)
         else:
-            assert len(component.sub_components) >= 1
+            if not len(component.sub_components) >= 1:
+                raise ValueError(
+                    f'{component.component_name} needs subcomponents'
+                )
             for sub_component in component.sub_components.values():
                 self.resolve_component(sub_component)
 
@@ -40,22 +44,27 @@ class NetList:
 
         string_segments.append('\n == Coalesced == \n')
         for group_num, group in enumerate(self.coalesced_nodes):
-            string_segments.append(
-                f'  {group_num:3} - {group[0].get_path()}\n'
-            )
-            for node in group[1:]:
-                string_segments.append(f'        {node.get_path()}\n')
+            if group:
+                string_segments.append(
+                    f'  {group_num:3} - {group[0].get_path()}\n'
+                )
+                for node in group[1:]:
+                    string_segments.append(f'        {node.get_path()}\n')
+            else:
+                string_segments.append(f'  {group_num:3} - [empty]\n')
 
         return ''.join(string_segments)
 
     def coalesce_nodes(self) -> None:
-        seen_nodes: typ.Set[Node] = set()
+        seen_nodes: typ.Set[comp.Node] = set()
+
+        # self.coalesced_nodes.append([])  # Ground reference
 
         for starting_node in self.nodes:
             if starting_node in seen_nodes:
                 continue
 
-            next_node_group: typ.List[Node] = []
+            next_node_group: typ.List[comp.Node] = []
             seen_nodes.add(starting_node)
 
             nodes_to_check = deque([starting_node])
@@ -76,7 +85,7 @@ class NetList:
                 self.coalesced_numbering[node] = group_num
 
     @classmethod
-    def make(cls, root: Component) -> 'NetList':
+    def make(cls, root: 'comp.Component') -> 'NetList':
         netlist = cls()
         netlist.resolve_component(root)
 

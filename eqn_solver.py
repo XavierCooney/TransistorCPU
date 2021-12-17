@@ -12,9 +12,11 @@ class System:
         MatEntryType = typ.Dict[typ.Tuple[int, int], float]
         # self.mat_entries indexed by (row, col)
         self.mat_entries: MatEntryType = defaultdict(int)
-        self.const_vec: typ.Dict[int, float] = defaultdict(int)
+        self.const_vec: typ.List[float] = []
 
         self.variable_overrides: typ.Dict[int, float] = {}
+
+        self.approximated = False
 
     def var_index(self, var: str) -> int:
         if var not in self.vars:
@@ -25,6 +27,9 @@ class System:
     def row_index(self, row_name: str) -> int:
         if row_name not in self.rows:
             self.rows[row_name] = len(self.rows)
+
+            while len(self.const_vec) < len(self.rows):
+                self.const_vec.append(0)
 
         return self.rows[row_name]
 
@@ -43,14 +48,36 @@ class System:
     def override_variable(self, var_name: str, value: float) -> None:
         # TODO: do this better
         var = self.var_index(var_name)
-        assert var not in self.variable_overrides
+        if var in self.variable_overrides:
+            assert self.variable_overrides[var] == value
         self.variable_overrides[var] = value
+
+    def dump_equation(self) -> str:
+        lines = [[f'{row_name:>20})'] for row_name in self.rows]
+
+        var_idx_to_name = {}
+        for var_name, var_idx in self.vars.items():
+            var_idx_to_name[var_idx] = var_name
+
+        for coord, coeff in self.mat_entries.items():
+            if math.isclose(coeff, 0):
+                continue
+            if lines[coord[0]][-1][-1] != ')':  # TODO: yuck
+                lines[coord[0]].append('+')
+            lines[coord[0]].append(f'{coeff} * {var_idx_to_name[coord[1]]}')
+
+        for row_id, constant in enumerate(self.const_vec):
+            lines[row_id].append(f'= {constant}')
+
+        return '\n'.join(map(' '.join, lines))
 
     def solve(self) -> typ.Dict[str, float]:
         # Delay import so no issue if sim not invoked
         import numpy
         import scipy.sparse  # type: ignore
         import scipy.sparse.linalg  # type: ignore
+
+        print(self.vars, self.rows, self.mat_entries)
 
         num_rows = len(self.rows)
         num_vars = len(self.vars) - len(self.variable_overrides)
@@ -62,7 +89,7 @@ class System:
                 var_renumbering[old_var_num] = len(var_renumbering)
 
         b_vec = numpy.zeros((num_rows,))
-        for index, constant in self.const_vec.items():
+        for index, constant in enumerate(self.const_vec):
             b_vec[index] = constant
 
         # TODO: construct the sparse matrix better?
@@ -75,7 +102,18 @@ class System:
             else:
                 matrix[(row_var, var_renumbering[term_var])] = coefficient
 
-        solution = scipy.sparse.linalg.spsolve(matrix.tocsr(), b_vec)
+        print(matrix, b_vec, sep='\n')
+
+        try:
+            solution = scipy.sparse.linalg.spsolve(matrix.tocsr(), b_vec)
+        except RuntimeError:
+            import traceback
+            traceback.print_exc()
+            print()
+            print('=' * 80)
+            print()
+            solution = scipy.sparse.linalg.lsqr(matrix.tocsr(), b_vec)
+            self.approximated = True
 
         final_result = {
             var_name: solution[var_renumbering[var_index]]
@@ -110,6 +148,8 @@ if __name__ == '__main__':
 
     system.override_variable('z', 2)
 
+    print(system.dump_equation())
+
     result = system.solve()
 
     print(result)
@@ -118,3 +158,4 @@ if __name__ == '__main__':
     assert math.isclose(result['x'], 5)
     assert math.isclose(result['y'], -7)
     assert math.isclose(result['z'], 2)
+    assert not system.approximated
