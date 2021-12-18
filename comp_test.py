@@ -9,6 +9,7 @@ import latch
 import spice
 from component import Component, Node
 from config import VOLTAGE
+from discrete_components import TempTestComponent
 from netlist import NetList
 
 us = 1e-6
@@ -216,7 +217,7 @@ def test_dlatch(interactive: bool) -> None:
         (4, [0, 1]),
         (6, [0, 0]),
         (9, [1, 0]),
-        (9.8, [0, 0]),
+        (10, [0, 0]),
     ])
 
     spice_src, output_list = spice.make_spice_script(
@@ -241,6 +242,34 @@ def test_dlatch(interactive: bool) -> None:
         assert check_data(15 * us)['not_out'] > HIGH
 
 
+def test_temp_component(interactive: bool) -> None:
+    component = TempTestComponent(None, 'main')
+    netlist = NetList.make(component)
+    print(netlist)
+    print(netlist.dump_info())
+
+    piecewise_inputs = calculate_piecewise_inputs([], 0.1, [])
+
+    spice_src, output_list = spice.make_spice_script(
+        'Test', netlist,
+        piecewise_inputs,
+        output_nodes=[
+            component.nodes['v'], component.nodes['gnd'],
+            component.nodes['a']
+        ],
+        time_step='1ns',
+        time_stop='17us',
+        input_time_suffix='us',
+        output_data=not interactive
+    )
+
+    check_data = run_spice_script(spice_src, interactive, output_list)
+    if not interactive:
+        assert check_data(0.05 * us)['v'] > HIGH
+        assert check_data(0.05 * us)['gnd'] < LOW
+        assert 3.7 < check_data(8 * us)['a'] < 3.8
+
+
 TEST_OVERRIDE: typ.Optional[str] = sys.argv[-1] if len(sys.argv) >= 2 else None
 TEST_ALL = TEST_OVERRIDE is None
 
@@ -251,6 +280,7 @@ tests: typ.Dict[str, typ.Callable[[bool], None]] = {
     'and': lambda i: test_binary_gate(i, gates_nmos.AndGate(None, 'main')),
     'nor': lambda i: test_binary_gate(i, gates_nmos.NorGate(None, 'main')),
     'or': lambda i: test_binary_gate(i, gates_nmos.OrGate(None, 'main')),
+    'temp_test': test_temp_component,
 }
 
 if __name__ == '__main__':

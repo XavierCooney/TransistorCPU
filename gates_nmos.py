@@ -1,7 +1,7 @@
 """ Gates based on NMOS logic """
 
 from component import Component
-from transistor import Ground, NTypeMosfet, PullUpResistor
+from discrete_components import Ground, NTypeMosfet, PullUpResistor
 
 
 class NandGate(Component):

@@ -69,7 +69,7 @@ class System:
         for row_id, constant in enumerate(self.const_vec):
             lines[row_id].append(f'= {constant}')
 
-        return '\n'.join(map(' '.join, lines))
+        return '\n'.join(map(' '.join, lines)) + '\n'
 
     def solve(self) -> typ.Dict[str, float]:
         # Delay import so no issue if sim not invoked
@@ -77,7 +77,7 @@ class System:
         import scipy.sparse  # type: ignore
         import scipy.sparse.linalg  # type: ignore
 
-        print(self.vars, self.rows, self.mat_entries)
+        # print(self.vars, self.rows, self.mat_entries)
 
         num_rows = len(self.rows)
         num_vars = len(self.vars) - len(self.variable_overrides)
@@ -102,7 +102,7 @@ class System:
             else:
                 matrix[(row_var, var_renumbering[term_var])] = coefficient
 
-        print(matrix, b_vec, sep='\n')
+        # print(matrix, b_vec, sep='\n')
 
         try:
             solution = scipy.sparse.linalg.spsolve(matrix.tocsr(), b_vec)

@@ -34,3 +34,13 @@ class SimulatedVoltage(SimulatedComponent):
 
     def step(self, dt: float, sim: Simulation) -> None:
         sim.stamp_abs_volate(self.a, self.value)
+
+
+class SimulatedCapacitor(SimulatedComponent):
+    def __init__(self, a: int, b: int, value: float) -> None:
+        self.a = a
+        self.b = b
+        self.value = value
+
+    def step(self, dt: float, sim: Simulation) -> None:
+        sim.stamp_capacitor(self.a, self.b, self.value, dt)

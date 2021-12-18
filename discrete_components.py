@@ -4,7 +4,8 @@ import config
 import netlist
 from component import AtomicComponent, Component
 from netlist import NetList
-from sim_components import SimulatedMosfet, SimulatedResistor, SimulatedVoltage
+from sim_components import (SimulatedCapacitor, SimulatedMosfet,
+                            SimulatedResistor, SimulatedVoltage)
 from simulation import SimulatedComponent
 
 
@@ -82,6 +83,33 @@ class Resistor(AtomicComponent):
         )
 
 
+class Capacitor(AtomicComponent):
+    node_names = ['a', 'b']
+    component_name = 'capacitor'
+
+    def set_capacitance(self, value: float) -> 'Capacitor':
+        self.capacitance = value
+        return self
+
+    def build(self) -> None: pass
+
+    def ngspice_line(self, comp_id: str, nodes: typ.Dict[str, str]) -> str:
+        return f'C{comp_id} {nodes["a"]} {nodes["b"]} {self.capacitance} ic=0'
+        # complicated to get the uncharged initial conditions right
+        # return (
+        #     f'.model custom_cap_a{comp_id} capacitor '
+        #     f'(c={self.capacitance} ic=0)\n'
+        #     f'A{comp_id} {nodes["a"]} {nodes["b"]} custom_cap_a{comp_id}'
+        # )
+
+    def make_sim_component(self, nl: netlist.NetList) -> SimulatedComponent:
+        return SimulatedCapacitor(
+            nl.coalesced_numbering[self.nodes['a']],
+            nl.coalesced_numbering[self.nodes['b']],
+            self.capacitance
+        )
+
+
 class PullUpResistor(Component):
     node_names = ['a', '_vdd']
     component_name = 'pullup_resistor'
@@ -92,3 +120,27 @@ class PullUpResistor(Component):
         self.connect('a', res.nodes['a'])
         self.connect('_vdd', res.nodes['b'])
         self.connect('_vdd', vdd.nodes['a'])
+
+
+class TempTestComponent(Component):
+    # Not strictly discrete but this is the best place to put it
+    node_names = ['v', 'gnd', 'a']
+    component_name = 'test'
+
+    def build(self) -> None:
+        voltage_source = self.add_component(Vdd(self, 'vdd'))
+        ground = self.add_component(Ground(self, 'gnd'))
+        r1 = self.add_component(Resistor(self, 'R1').set_resistance(100))
+        # r2 = self.add_component(Resistor(self, 'R2').set_resistance(300))
+        cap = self.add_component(Capacitor(self, 'C1').set_capacitance(20e-9))
+
+        self.connect('v', voltage_source.nodes['a'])
+        self.connect('v', r1.nodes['a'])
+        self.connect('a', r1.nodes['b'])
+        # self.connect('a', r2.nodes['a'])
+        # self.connect('gnd', r2.nodes['b'])
+        # self.connect('gnd', r1.nodes['b'])
+        self.connect('gnd', ground.nodes['a'])
+
+        self.connect('a', cap.nodes['a'])
+        self.connect('gnd', cap.nodes['b'])
