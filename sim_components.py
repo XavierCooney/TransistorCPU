@@ -9,11 +9,7 @@ class SimulatedMosfet(SimulatedComponent):
         self.gate = gate
         self.source = source
 
-        # TODO: much more sophisticated capacitance model
-        self.charge = 0
-        self.prev_voltage = 0
-
-    def step(self, dt: float, sim: Simulation) -> None:
+    def step(self, dt: float, sim: Simulation, comp_id: int) -> None:
         raise TypeError()
 
 
@@ -23,7 +19,7 @@ class SimulatedResistor(SimulatedComponent):
         self.b = b
         self.value = value
 
-    def step(self, dt: float, sim: Simulation) -> None:
+    def step(self, dt: float, sim: Simulation, comp_id: int) -> None:
         sim.stamp_resistor(self.a, self.b, self.value)
 
 
@@ -32,8 +28,8 @@ class SimulatedVoltage(SimulatedComponent):
         self.a = a
         self.value = value
 
-    def step(self, dt: float, sim: Simulation) -> None:
-        sim.stamp_abs_volate(self.a, self.value)
+    def step(self, dt: float, sim: Simulation, comp_id: int) -> None:
+        sim.stamp_abs_volate(self.a, self.value, str(comp_id))
 
 
 class SimulatedCapacitor(SimulatedComponent):
@@ -42,5 +38,5 @@ class SimulatedCapacitor(SimulatedComponent):
         self.b = b
         self.value = value
 
-    def step(self, dt: float, sim: Simulation) -> None:
-        sim.stamp_capacitor(self.a, self.b, self.value, dt)
+    def step(self, dt: float, sim: Simulation, comp_id: int) -> None:
+        sim.stamp_capacitor(self.a, self.b, self.value, dt, str(comp_id))
