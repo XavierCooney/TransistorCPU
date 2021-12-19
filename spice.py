@@ -63,9 +63,11 @@ def make_spice_script(  # TODO: this is a bit ugly...
             f'{input_time}{input_time_suffix} {input_val}'
             for input_time, input_val in input_commands
         )
+        intitial_voltage = input_commands[0][1]
+        assert input_commands[0][0] == 0
         segments.append(
             f'V{comp_id} {make_node_id(netlist, input_node, special_nodes)}'
-            f' gnd PWL({piecewise_form})'
+            f' gnd PWL({piecewise_form}) dc {intitial_voltage}'
         )
         comp_id += 1
 
