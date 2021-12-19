@@ -37,6 +37,11 @@ class Simulation:
     def get_branch_var(self, pos: int, neg: int, comp_id: str) -> str:
         return f'branch_{pos}_to_{neg}__{comp_id}'
 
+    def get_prev_voltage(self, node: int) -> float:
+        voltage = self.prev_voltages[node]
+        assert voltage is not None
+        return voltage
+
     def stamp_resistor(self, pos: int, neg: int, ohms: float) -> None:
         assert ohms > 0
         conductance = 1 / ohms
