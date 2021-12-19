@@ -1,6 +1,8 @@
 import typing as typ
 
 VOLTAGE = 5
+HIGH = 4.7
+LOW = 0.3
 BITS = 6
 
 

@@ -70,7 +70,7 @@ def make_spice_script(  # TODO: this is a bit ugly...
         comp_id += 1
 
     segments.append('.control')
-    segments.append(f'tran {time_step} {time_stop} uic')
+    segments.append(f'tran {time_step} {time_stop}')
 
     plot_command_vars = ' '.join(
         f'v({make_node_id(netlist, output_node, special_nodes)})'
