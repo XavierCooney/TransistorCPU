@@ -7,6 +7,7 @@ import tester
 
 us = 1e-6
 ns = 1e-9
+SPICE_ENCODING = 'utf-8'
 
 
 def process_spice_output(
@@ -79,22 +80,46 @@ def run_spice_script(
             cwd=os.path.abspath('spice_script'),
             encoding='utf-8'
         )
-        if verbose:
-            print(output)
+        if verbose and output:
+            print("Windowed output: ", output)
 
     if not interactive:
-        # TODO: capture and process stderr
-        output = subprocess.check_output(
+        completed_process = subprocess.run(
             ['spice64\\bin\\ngspice_con.exe', '-b', 'script.cir'],
             cwd=os.path.abspath('spice_script'),
-            encoding='utf-8'
+            encoding=SPICE_ENCODING, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
 
-        if verbose:
-            print(output)
+        stdout = completed_process.stdout
+        stderr = completed_process.stderr
+
+        if verbose and stdout:
+            print('Console stdout:', stdout, sep='\n')
+
+        if verbose and stderr:
+            print('Console stderr:', stderr, sep='\n')
+
+        ALLOWED_MESSAGES = {
+            "Note: can't find init file.",
+            'ERROR: (internal)  This operation is not '
+            'defined for display type PrinterOnly.',
+            "Can't open viewport for graphics."
+        }
+        for line in stderr.split('\n'):
+            if not line:
+                continue
+            elif line in ALLOWED_MESSAGES:
+                continue
+            elif line.startswith(' Reference value :  '):
+                continue
+            else:
+                print("Unknown stderr line:", line)
+                assert False
 
         return process_spice_output(outputs)
-    else:
+
+    else:  # interactive
         def no_data(time: float) -> typ.NoReturn:
             assert False
         return no_data
