@@ -96,10 +96,11 @@ class Simulation:
             assert v_b is not None
             old_voltage = v_a - v_b
 
-        self.system.add_term(c_on_h, f'v{a}', f'{var_name}_cap_i')
-        self.system.add_term(-c_on_h, f'v{b}', f'{var_name}_cap_i')
-        self.system.add_term(-1, f'{var_name}', f'{var_name}_cap_i')
-        self.system.add_constant(c_on_h * old_voltage, f'{var_name}_cap_i')
+        cap_row_name = f'{var_name}_cap_i'
+        self.system.add_term(c_on_h, f'v{a}', cap_row_name)
+        self.system.add_term(-c_on_h, f'v{b}', cap_row_name)
+        self.system.add_term(-1, var_name, cap_row_name)
+        self.system.add_constant(c_on_h * old_voltage, cap_row_name)
 
     def do_stamping(self, dt: float) -> None:
         for hook in self.pre_step_hooks:

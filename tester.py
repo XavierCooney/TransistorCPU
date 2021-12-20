@@ -235,6 +235,7 @@ def make_test_dict() -> typ.Dict[str, typ.Type[Test]]:
         'sr_latch': all_tests.SRLatchTest,
         'd_latch': all_tests.DLatchTest,
         'half_adder': all_tests.HalfAdderTest,
+        'incrementor': all_tests.IncrementorTest,
         'temp': all_tests.TempTest,
     }
 
@@ -285,6 +286,7 @@ def main() -> None:
             test = test_dict[test_name](
                 is_verbose, is_interactive, 'spice'
             )
+            print(test.test_length_us, 'us')
             start = time.perf_counter()
             test_spice.run_test(test)
             print('Time:', time.perf_counter() - start)

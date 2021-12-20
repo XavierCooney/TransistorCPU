@@ -6,6 +6,7 @@ import gates_nmos
 import latch
 import tester
 from component import Component
+from config import bits_suffix
 
 
 class NandGateTest(tester.StatelessGateTest):
@@ -179,6 +180,31 @@ class HalfAdderTest(tester.StatelessGateTest):
         a, b = inputs
         output = [a ^ b, a and b]
         return output
+
+
+class IncrementorTest(tester.StatelessGateTest):
+    NUM_BITS_TO_TEST = 3
+    expected_gate_delay_us = 9
+    input_nodes = bits_suffix('in_', NUM_BITS_TO_TEST)[::-1]
+    output_nodes = bits_suffix('out_', NUM_BITS_TO_TEST + 1)[::-1]
+    test_name = f'incrementor ({NUM_BITS_TO_TEST} bits)'
+
+    def make_component(self) -> Component:
+        return alu.UnsizedIncrementor(None, 'main', self.NUM_BITS_TO_TEST)
+
+    def expected_input(self, *inputs: bool) -> typ.List[bool]:
+        assert len(inputs) == self.NUM_BITS_TO_TEST
+
+        as_binary_string = map({False: '0', True: '1'}.get, inputs)
+        output_integer = int(
+            ''.join(typ.cast(typ.Iterable[str], as_binary_string)), 2
+        ) + 1
+
+        output_reversed = []
+        for bit in range(self.NUM_BITS_TO_TEST + 1):
+            output_reversed.append(bool(output_integer & (1 << bit)))
+
+        return output_reversed[::-1]
 
 
 class TempTest(tester.Test):

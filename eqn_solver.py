@@ -94,7 +94,7 @@ class System:
         if USE_PYPARDISO:
             try:
                 import pypardiso  # type: ignore
-                solution = pypardiso.spsolve(A, b)
+                solution = pypardiso.spsolve(A.tocsc(), b)
                 return solution
             except ImportError:
                 warnings.warn("Can't import pypardiso")
