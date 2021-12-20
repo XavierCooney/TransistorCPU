@@ -90,3 +90,49 @@ class OrGate(Component):
         self.connect('_nor_res', nor_gate.nodes['out'])
         self.connect('_nor_res', not_gate.nodes['a'])
         self.connect('out', not_gate.nodes['out'])
+
+
+class XOrGate(Component):
+    node_names = [
+        'a', 'b', '_not_a', '_not_b', '_gnd',
+        '_mid_left', '_mid_right', 'out'
+    ]
+    component_name = 'xor'
+
+    def build(self) -> None:
+        not_a = self.add_component(NotGate(self, 'not_a'))
+        not_b = self.add_component(NotGate(self, 'not_b'))
+
+        self.connect('a', not_a.nodes['a'])
+        self.connect('b', not_b.nodes['a'])
+
+        self.connect('_not_a', not_a.nodes['out'])
+        self.connect('_not_b', not_b.nodes['out'])
+
+        pullup = self.add_component(PullUpResistor(self, 'pullup'))
+        self.connect('out', pullup.nodes['a'])
+
+        ground = self.add_component(Ground(self, 'gnd'))
+        self.connect('_gnd', ground.nodes['a'])
+
+        nmos_a = self.add_component(NTypeMosfet(self, 'nmos_a'))
+        nmos_b = self.add_component(NTypeMosfet(self, 'nmos_b'))
+
+        self.connect('a', nmos_a.nodes['gate'])
+        self.connect('b', nmos_b.nodes['gate'])
+
+        self.connect('out', nmos_a.nodes['drain'])
+        self.connect('_mid_right', nmos_a.nodes['source'])
+        self.connect('_mid_right', nmos_b.nodes['drain'])
+        self.connect('_gnd', nmos_b.nodes['source'])
+
+        nmos_not_a = self.add_component(NTypeMosfet(self, 'nmos_not_a'))
+        nmos_not_b = self.add_component(NTypeMosfet(self, 'nmos_not_b'))
+
+        self.connect('_not_a', nmos_not_a.nodes['gate'])
+        self.connect('_not_b', nmos_not_b.nodes['gate'])
+
+        self.connect('out', nmos_not_a.nodes['drain'])
+        self.connect('_mid_left', nmos_not_a.nodes['source'])
+        self.connect('_mid_left', nmos_not_b.nodes['drain'])
+        self.connect('_gnd', nmos_not_b.nodes['source'])

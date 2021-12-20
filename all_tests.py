@@ -64,7 +64,7 @@ class OrGateTest(tester.StatelessGateTest):
 
 
 class NotGateTest(tester.StatelessGateTest):
-    expected_gate_delay_us = 3
+    expected_gate_delay_us = 2
     input_nodes = ['a']
     output_nodes = ['out']
     test_name = 'not gate'
@@ -75,6 +75,20 @@ class NotGateTest(tester.StatelessGateTest):
     def expected_input(self, *inputs: bool) -> typ.List[bool]:
         a, = inputs
         return [not a]
+
+
+class XOrGateTest(tester.StatelessGateTest):
+    expected_gate_delay_us = 5
+    input_nodes = ['a', 'b']
+    output_nodes = ['out']
+    test_name = 'xor gate'
+
+    def make_component(self) -> Component:
+        return gates_nmos.XOrGate(None, 'main')
+
+    def expected_input(self, *inputs: bool) -> typ.List[bool]:
+        a, b = inputs
+        return [a ^ b]
 
 
 class SRLatchTest(tester.ComponentWithStateTest):
@@ -176,6 +190,3 @@ class TempTest(tester.Test):
         get_output: typ.Callable[[float], typ.Dict[str, float]]
     ) -> None:
         assert False
-
-
-t = TempTest(False, False, 'temp')
