@@ -1,4 +1,5 @@
 import abc
+import time
 import typing as typ
 
 import component as comp
@@ -134,13 +135,33 @@ class Simulation:
         self.time += dt
 
 
+def live_update(sim: Simulation, time_stop: float, time_start: float) -> None:
+    completion = sim.time / time_stop
+    completion_percent = completion * 100
+    time_elapsed = time.time() - time_start
+
+    if (time_elapsed > 0.1 and completion > 0.02) or completion >= 1:
+        eta_val = (1 - completion) / (completion / time_elapsed)
+        eta_val = max(eta_val, 0)
+        eta = f'{eta_val:>6.2f}'
+    else:
+        eta = ' ... '
+
+    completion_percent = min(completion_percent, 100)
+    print(
+        f'\r {sim.time * 1e6:>8.2f} / {time_stop * 1e6:.2f},',
+        f'{completion_percent:> 6.2f}%   elapsed: {time_elapsed:>6.2f}s',
+        f'   eta: {eta}s',
+        end=''
+    )
+
+
 def simulate(
     netlist: NetList,
     inputs: typ.Dict['comp.Node', typ.List[typ.Tuple[float, float]]],
     output_nodes: typ.List['comp.Node'],
-    time_step: float = 5e-9,
-    time_stop: float = 5e-6,
-    verbose: bool = False
+    time_step: float, time_stop: float, verbose: bool = False,
+    provide_live_updates: bool = True
 ) -> typ.List[typ.Tuple[float, typ.List[float]]]:
     sim = Simulation(netlist, verbose)
 
@@ -173,6 +194,8 @@ def simulate(
     sim.pre_step_hooks.append(handle_inputs)
 
     all_outputs: typ.List[typ.Tuple[float, typ.List[float]]] = []
+    last_live_update: float = 0
+    time_start = time.time()
 
     while sim.time < time_stop:
         sim.step(time_step)
@@ -183,7 +206,14 @@ def simulate(
             assert voltage is not None
             output.append(voltage)
 
-        # print('\n', sim.time, output, '\n')
         all_outputs.append((sim.time, output))
+
+        if provide_live_updates and time.time() - last_live_update > 0.3:
+            last_live_update = time.time()
+            live_update(sim, time_stop, time_start)
+
+    if provide_live_updates:
+        live_update(sim, time_stop, time_start)
+    print()
 
     return all_outputs

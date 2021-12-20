@@ -35,7 +35,7 @@ class UnsizedIncrementor(component.Component):
         role: str, num_bits: int
     ) -> None:
         self.num_bits = num_bits
-        assert num_bits >= 3
+        assert num_bits >= 2
 
         self.node_names = [
             *bits_suffix('in_', self.num_bits),

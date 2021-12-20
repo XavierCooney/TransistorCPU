@@ -34,7 +34,8 @@ def process_spice_output(
 
         output_data.append((time, segments[1::2]))
 
-    assert list(sorted(output_data)) == output_data
+    for prev_record, next_record in zip(output_data, output_data[1:]):
+        assert next_record[0] - prev_record[0] >= -0.1 * 1e-9
 
     REQUIRED_INCREMENT = 20 * 10 ** -9
 

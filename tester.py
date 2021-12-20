@@ -165,6 +165,88 @@ class StatelessGateTest(Test):
                     assert False
 
 
+class QuickStatelessGateTest(Test):
+    @abc.abstractproperty
+    def input_nodes(self) -> typ.List[str]: pass
+
+    @abc.abstractproperty
+    def expected_gate_delay_us(self) -> float: pass
+
+    @property
+    def test_length_us(self) -> float:
+        num_states: float = 2 ** len(self.input_nodes)
+        return self.expected_gate_delay_us * (2 * num_states + 1)
+
+    def get_input_pieces(
+        self, component: Component
+    ) -> typ.List[typ.Tuple[float, typ.List[bool]]]:
+        input_state_len = len(self.input_nodes)
+
+        all_states = itertools.product(
+            *[[0, 1] for i in range(input_state_len)]
+        )
+
+        time: float = 0
+        input_pieces: typ.List[typ.Tuple[float, typ.List[bool]]] = []
+
+        for state in all_states:
+            # As a heuristic, the most switching probably needs
+            # to occur when all bits are flipped
+            state_pre = list(map(lambda x: not x, state))
+            input_pieces.append((time, state_pre))
+            time += self.expected_gate_delay_us
+
+            input_pieces.append((time, state))  # type: ignore
+            time += self.expected_gate_delay_us
+
+            # input_pieces.append((time, state))  # type: ignore
+            # time += self.expected_gate_delay_us
+
+        return input_pieces
+
+    def make_input(self, component: Component) -> PieceWiseInputByNode:
+        input_pieces = self.get_input_pieces(component)
+        if self.verbose:
+            print(input_pieces)
+
+        return construct_linear_piecewise_input(
+            component_nodes_by_name(component, self.input_nodes), 0.1,
+            typ.cast(typ.List[typ.Tuple[float, typ.List[float]]], input_pieces)
+        )
+
+    @abc.abstractmethod
+    def expected_input(self, *inputs: bool) -> typ.List[bool]: pass
+
+    def check_output(
+        self, component: Component,
+        get_output: typ.Callable[[float], typ.Dict[str, float]]
+    ) -> None:
+        input_pieces = self.get_input_pieces(component)
+
+        for piece in input_pieces:
+            check_time = piece[0] + self.expected_gate_delay_us - 0.1
+            actual_output = get_output(check_time * 1e-6)
+            input_as_bools = [bool(inp) for inp in piece[1]]
+            expected_output = self.expected_input(*input_as_bools)
+
+            assert len(self.output_nodes) == len(expected_output)
+
+            for i, output_node in enumerate(self.output_nodes):
+                is_correct = False
+                if expected_output[i]:
+                    is_correct = actual_output[output_node] > config.HIGH
+                else:
+                    is_correct = actual_output[output_node] < config.LOW
+
+                if not is_correct:
+                    print(f"Incorrect value @ t = {check_time} us:")
+                    print(f"      Input: {input_as_bools}")
+                    print(f"   Expected: {expected_output}")
+                    print(f"     Actual: {actual_output}")
+                    print(f"      State: i={i} output_node={output_node}")
+                    assert False
+
+
 StatefulIO = typ.List[typ.Tuple[float, typ.Dict[str, float], typ.List[float]]]
 
 
@@ -235,7 +317,9 @@ def make_test_dict() -> typ.Dict[str, typ.Type[Test]]:
         'sr_latch': all_tests.SRLatchTest,
         'd_latch': all_tests.DLatchTest,
         'half_adder': all_tests.HalfAdderTest,
-        'incrementor': all_tests.IncrementorTest,
+        'quick_incrementor': all_tests.ReallyQuickIncrementorTest,
+        'slow_quick_incrementor': all_tests.QuickIncrementorTest,
+        'slow_incrementor': all_tests.IncrementorTest,
         'temp': all_tests.TempTest,
     }
 
@@ -253,6 +337,8 @@ def main() -> None:
 
     test_with_spice = False
     test_with_sim = False
+
+    is_all_tests = False
 
     for arg in sys.argv[1:]:
         if arg in ('-i', '--interactive'):
@@ -272,6 +358,7 @@ def main() -> None:
             sys.exit(1)
 
     if len(tests_to_run) == 0:
+        is_all_tests = True
         tests_to_run = list(test_dict.keys())
         tests_to_run.remove('temp')  # don't run temp when no tests specified
 
@@ -282,22 +369,21 @@ def main() -> None:
     import time
 
     for test_name in tests_to_run:
-        if test_with_spice:
+        skip_spice = is_all_tests and test_name.startswith('slow')
+        if test_with_spice and not skip_spice:
             test = test_dict[test_name](
                 is_verbose, is_interactive, 'spice'
             )
-            print(test.test_length_us, 'us')
             start = time.perf_counter()
             test_spice.run_test(test)
-            print('Time:', time.perf_counter() - start)
+            print('Time:', f'{time.perf_counter() - start:.2f}')
 
         if test_with_sim:
             test = test_dict[test_name](
                 is_verbose, is_interactive, 'simulation'
             )
-            start = time.perf_counter()
+
             test_sim.run_test(test)
-            print('Time:', time.perf_counter() - start)
 
 
 if __name__ == '__main__':
