@@ -234,6 +234,7 @@ def make_test_dict() -> typ.Dict[str, typ.Type[Test]]:
         'xor': all_tests.XOrGateTest,
         'sr_latch': all_tests.SRLatchTest,
         'd_latch': all_tests.DLatchTest,
+        'half_adder': all_tests.HalfAdderTest,
         'temp': all_tests.TempTest,
     }
 

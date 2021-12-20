@@ -1,6 +1,7 @@
 import itertools
 import typing as typ
 
+import alu
 import gates_nmos
 import latch
 import tester
@@ -163,6 +164,21 @@ class DLatchTest(tester.ComponentWithStateTest):
                 time += 1
 
         return io
+
+
+class HalfAdderTest(tester.StatelessGateTest):
+    expected_gate_delay_us = 5
+    input_nodes = ['a', 'b']
+    output_nodes = ['sum_out', 'carry_out']
+    test_name = 'half adder'
+
+    def make_component(self) -> Component:
+        return alu.HalfAdder(None, 'main')
+
+    def expected_input(self, *inputs: bool) -> typ.List[bool]:
+        a, b = inputs
+        output = [a ^ b, a and b]
+        return output
 
 
 class TempTest(tester.Test):
