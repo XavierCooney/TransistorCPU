@@ -149,3 +149,33 @@ class DLatchTest(tester.ComponentWithStateTest):
                 time += 1
 
         return io
+
+
+class TempTest(tester.Test):
+    # For putting components in the test harness temporarily
+    test_name = 'temp'
+    test_length_us = 10
+    output_nodes = ['out']
+
+    def make_component(self) -> Component:
+        return gates_nmos.NotGate(None, 'main')
+
+    def make_input(self, component: Component) -> tester.PieceWiseInputByNode:
+        return {
+            component.nodes['a']: [
+                (0, 0),
+                (3, 0),
+                (3.2, 5),
+                (6, 5),
+                (6.2, 0),
+            ]
+        }
+
+    def check_output(
+        self, component: Component,
+        get_output: typ.Callable[[float], typ.Dict[str, float]]
+    ) -> None:
+        assert False
+
+
+t = TempTest(False, False, 'temp')

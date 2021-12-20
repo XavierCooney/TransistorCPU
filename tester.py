@@ -4,6 +4,7 @@ import sys
 import typing as typ
 
 import config
+import test_sim
 import test_spice
 from component import Component, Node
 from netlist import NetList
@@ -57,13 +58,16 @@ class Test(abc.ABC):
     @abc.abstractproperty
     def test_length_us(self) -> float: pass
 
-    def __init__(self, verbose: bool, interactive: bool) -> None:
+    def __init__(
+        self, verbose: bool, interactive: bool, test_ctx: str
+    ) -> None:
         self.verbose = verbose
         self.interactive = interactive
+        self.test_context = test_ctx
 
     def start_test(self) -> None:
         if self.verbose or True:
-            print(f"\n  === {self.test_name} ===")
+            print(f"\n  === {self.test_name} ({self.test_context}) ===")
 
     @abc.abstractmethod
     def make_component(self) -> Component: pass
@@ -157,7 +161,7 @@ class StatelessGateTest(Test):
                     print(f"      Input: {input_as_bools}")
                     print(f"   Expected: {expected_output}")
                     print(f"     Actual: {actual_output}")
-                    print(f"      State: {i=} {output_node=}")
+                    print(f"      State: i={i} output_node={output_node}")
                     assert False
 
 
@@ -229,6 +233,7 @@ def make_test_dict() -> typ.Dict[str, typ.Type[Test]]:
         'not': all_tests.NotGateTest,
         'sr_latch': all_tests.SRLatchTest,
         'd_latch': all_tests.DLatchTest,
+        'temp': all_tests.TempTest,
     }
 
     assert len(set(dict_obj.values())) == len(dict_obj)
@@ -243,11 +248,18 @@ def main() -> None:
     is_interactive = False
     is_verbose = False
 
+    test_with_spice = False
+    test_with_sim = False
+
     for arg in sys.argv[1:]:
         if arg in ('-i', '--interactive'):
             is_interactive = True
         elif arg in ('-v', '--verbose'):
             is_verbose = True
+        elif arg in ('--spice', '-spice'):
+            test_with_spice = True
+        elif arg in ('--sim', '-sim'):
+            test_with_sim = True
         elif arg in test_dict.keys():
             tests_to_run.append(arg)
         else:
@@ -258,10 +270,30 @@ def main() -> None:
 
     if len(tests_to_run) == 0:
         tests_to_run = list(test_dict.keys())
+        tests_to_run.remove('temp')  # don't run temp when no tests specified
+
+    if not (test_with_spice or test_with_sim):
+        test_with_sim = True
+        test_with_spice = True
+
+    import time
 
     for test_name in tests_to_run:
-        test = test_dict[test_name](is_verbose, is_interactive)
-        test_spice.run_test(test)
+        if test_with_spice:
+            test = test_dict[test_name](
+                is_verbose, is_interactive, 'spice'
+            )
+            start = time.perf_counter()
+            test_spice.run_test(test)
+            print('Time:', time.perf_counter() - start)
+
+        if test_with_sim:
+            test = test_dict[test_name](
+                is_verbose, is_interactive, 'simulation'
+            )
+            start = time.perf_counter()
+            test_sim.run_test(test)
+            print('Time:', time.perf_counter() - start)
 
 
 if __name__ == '__main__':

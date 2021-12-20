@@ -125,7 +125,7 @@ def run_spice_script(
         return no_data
 
 
-def run_test(test: tester.Test) -> None:
+def run_test(test: 'tester.Test') -> None:
     test.start_test()
     component = test.make_component()
     netlist = test.make_netlist(component)

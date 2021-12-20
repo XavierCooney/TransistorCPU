@@ -31,13 +31,13 @@ class SimulatedMosfet(SimulatedComponent):
             v_drain = sim.get_prev_voltage(self.drain)
             v_source = sim.get_prev_voltage(self.source)
 
-            vgs = v_gate - v_drain
-            assert v_drain - v_source >= -1e-9
+            vgs = v_gate - v_source
+            assert v_drain - v_source >= -10
 
             if vgs > 3:
                 sim.stamp_resistor(self.drain, self.source, 5.3)
             else:
-                sim.stamp_resistor(self.drain, self.source, 10 ** 6)
+                sim.stamp_resistor(self.drain, self.source, 200e3)
 
 
 class SimulatedResistor(SimulatedComponent):

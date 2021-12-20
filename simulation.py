@@ -116,7 +116,7 @@ class Simulation:
         solution = self.system.solve()
         assert not self.system.approximated
         if self.verbose:
-            print(solution, '', sep='\n')
+            print(self.time, solution, '', sep='\n')
 
         self.prev_voltages = [None] * self.num_nodes
         for var_name, value in solution.items():
@@ -140,7 +140,7 @@ def simulate(
     time_step: float = 5e-9,
     time_stop: float = 5e-6,
     verbose: bool = False
-) -> typ.List[typ.Tuple[float, typ.Dict['comp.Node', float]]]:
+) -> typ.List[typ.Tuple[float, typ.List[float]]]:
     sim = Simulation(netlist, verbose)
 
     def handle_inputs(sim: Simulation) -> None:
@@ -149,26 +149,38 @@ def simulate(
             node_id = netlist.coalesced_numbering[input_node]
             assert len(input_list) > 0
 
-            input_voltage = None
-            for input_time, input_voltage in input_list:
-                if sim.time > input_time:
-                    break
+            for inp_before, inp_after in zip(input_list, input_list[1:]):
+                time = sim.time * 1e6
+                if not (inp_before[0] <= time <= inp_after[0]):
+                    continue
 
-            if input_voltage is not None:
-                sim.stamp_abs_volate(node_id, input_voltage, f'inp_{input_id}')
+                t = (time - inp_before[0]) / (inp_after[0] - inp_before[0])
+                assert 0 <= t <= 1
+
+                voltage = (1 - t) * inp_before[1] + inp_after[1] * t
+                sim.stamp_abs_volate(node_id, voltage, f'input_{input_id}')
+                break
+            else:
+                if sim.time >= input_list[-1][0] * 1e-6:
+                    sim.stamp_abs_volate(
+                        node_id, input_list[-1][1],
+                        f'input_{input_id}'
+                    )
+                else:
+                    assert False
 
     sim.pre_step_hooks.append(handle_inputs)
 
-    all_outputs: typ.List[typ.Tuple[float, typ.Dict['comp.Node', float]]] = []
+    all_outputs: typ.List[typ.Tuple[float, typ.List[float]]] = []
 
     while sim.time < time_stop:
         sim.step(time_step)
 
-        output: typ.Dict['comp.Node', float] = {}
+        output: typ.List[float] = []
         for node in output_nodes:
             voltage = sim.prev_voltages[netlist.coalesced_numbering[node]]
             assert voltage is not None
-            output[node] = voltage
+            output.append(voltage)
 
         # print('\n', sim.time, output, '\n')
         all_outputs.append((sim.time, output))
