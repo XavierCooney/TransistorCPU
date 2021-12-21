@@ -60,11 +60,13 @@ class Test(abc.ABC):
     def test_length_us(self) -> float: pass
 
     def __init__(
-        self, verbose: bool, interactive: bool, test_ctx: str
+        self, verbose: bool, interactive: bool,
+        dump_netlist: bool, test_ctx: str
     ) -> None:
         self.verbose = verbose
         self.interactive = interactive
         self.test_context = test_ctx
+        self.dump_netlist = dump_netlist
 
     def start_test(self) -> None:
         if self.verbose or True:
@@ -75,7 +77,7 @@ class Test(abc.ABC):
 
     def make_netlist(self, component: Component) -> NetList:
         netlist = NetList.make(component)
-        if self.verbose:
+        if self.verbose or self.dump_netlist:
             print(netlist.dump_info())
         return netlist
 
@@ -338,6 +340,7 @@ def main() -> None:
     tests_to_run = []
     is_interactive = False
     is_verbose = False
+    dump_netlist = False
 
     test_with_spice = False
     test_with_sim = False
@@ -353,6 +356,8 @@ def main() -> None:
             test_with_spice = True
         elif arg in ('--sim', '-sim'):
             test_with_sim = True
+        elif arg in ('-n', '--netlist'):
+            dump_netlist = True
         elif arg in test_dict.keys():
             tests_to_run.append(arg)
         else:
@@ -374,17 +379,23 @@ def main() -> None:
 
     for test_name in tests_to_run:
         skip_spice = is_all_tests and test_name.startswith('slow')
+        dumped_netlist = False
+
         if test_with_spice and not skip_spice:
             test = test_dict[test_name](
-                is_verbose, is_interactive, 'spice'
+                is_verbose, is_interactive,
+                dump_netlist, 'spice'
             )
+
             start = time.perf_counter()
             test_spice.run_test(test)
             print('Time:', f'{time.perf_counter() - start:.2f}')
+            dumped_netlist = dump_netlist
 
         if test_with_sim:
             test = test_dict[test_name](
-                is_verbose, is_interactive, 'simulation'
+                is_verbose, is_interactive,
+                dump_netlist and not dumped_netlist, 'simulation'
             )
 
             test_sim.run_test(test)

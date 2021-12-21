@@ -53,6 +53,28 @@ class NetList:
             else:
                 string_segments.append(f'  {group_num:3} - [empty]\n')
 
+        string_segments.append('\n == Components == \n')
+        component_counts_by_name = {}  # TODO: defaultdict
+        for component in self.atomic_componenets:
+            name = component.component_name
+            string_segments.append(
+                f'   {component.component_name}'
+            )
+            for node_name, node in component.nodes.items():
+                coalesced = self.coalesced_numbering[node]
+                string_segments.append(f' {node_name}={coalesced}')
+            string_segments.append('\n')
+
+            if name not in component_counts_by_name:
+                component_counts_by_name[name] = 0
+            component_counts_by_name[name] += 1
+
+        string_segments.append('\n == Component Counts == \n')
+        component_counts = list(component_counts_by_name.items())
+        component_counts.sort(key=lambda item: -item[1])
+        for name, count in component_counts:
+            string_segments.append(f'    {name} - {count}\n')
+
         return ''.join(string_segments)
 
     def coalesce_nodes(self) -> None:
