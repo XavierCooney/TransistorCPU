@@ -1,6 +1,7 @@
 import abc
 import itertools
 import sys
+import time
 import typing as typ
 
 import config
@@ -320,6 +321,9 @@ def make_test_dict() -> typ.Dict[str, typ.Type[Test]]:
         'quick_incrementor': all_tests.ReallyQuickIncrementorTest,
         'slow_quick_incrementor': all_tests.QuickIncrementorTest,
         'slow_incrementor': all_tests.IncrementorTest,
+        'reg2': all_tests.Register2Test,
+        'slow_reg5': all_tests.Register5Test,
+        'slow_reg6': all_tests.Register6Test,
         'temp': all_tests.TempTest,
     }
 
@@ -366,7 +370,7 @@ def main() -> None:
         test_with_sim = True
         test_with_spice = True
 
-    import time
+    suite_start_time = time.time()
 
     for test_name in tests_to_run:
         skip_spice = is_all_tests and test_name.startswith('slow')
@@ -384,6 +388,14 @@ def main() -> None:
             )
 
             test_sim.run_test(test)
+
+    if is_all_tests:
+        total_elapsed = time.time() - suite_start_time
+        minutes = int(total_elapsed // 60)
+        seconds = total_elapsed % 60
+        final_message = f' Total suite time: {minutes}m and {seconds:.2f}s'
+        print('=' * len(final_message))
+        print(final_message)
 
 
 if __name__ == '__main__':

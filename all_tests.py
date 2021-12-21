@@ -4,6 +4,7 @@ import typing as typ
 import alu
 import gates_nmos
 import latch
+import register
 import tester
 from component import Component
 from config import bits_suffix
@@ -255,6 +256,64 @@ class QuickIncrementorTest(tester.QuickStatelessGateTest):
             output_reversed.append(bool(output_integer & (1 << bit)))
 
         return output_reversed[::-1]
+
+
+def make_register_test(num_bits: int) -> typ.Type[tester.Test]:
+    class RegisterTest(tester.ComponentWithStateTest):
+        NUM_BITS_TO_TEST = num_bits
+
+        input_nodes = [
+            'write_to_reg',
+            *bits_suffix('in_', NUM_BITS_TO_TEST),
+        ]
+        output_nodes = [
+            *bits_suffix('out_', NUM_BITS_TO_TEST),
+            *bits_suffix('not_out_', NUM_BITS_TO_TEST),
+        ]
+        test_name = f'register ({NUM_BITS_TO_TEST} bits)'
+
+        def make_component(self) -> Component:
+            return register.Register(None, 'main', self.NUM_BITS_TO_TEST)
+
+        def get_io(self) -> tester.StatefulIO:
+            time = 0
+            io: tester.StatefulIO = []
+            for data in itertools.product(*([[0, 1]] * self.NUM_BITS_TO_TEST)):
+                not_data = [not x for x in data]
+
+                output_pre = {
+                    f'out_{i}': 1 - data[i]
+                    for i in range(self.NUM_BITS_TO_TEST)
+                }
+                output_pre.update({
+                    f'not_out_{i}': data[i]
+                    for i in range(self.NUM_BITS_TO_TEST)
+                })
+
+                output_post = {
+                    key: 1 - val
+                    for key, val in output_pre.items()
+                }
+
+                io.append((time, {}, [True, *not_data]))
+                time += 8
+                io.append((time, output_pre, [False, *not_data]))
+                time += 2
+                io.append((time, output_pre, [True, *data]))
+                time += 8
+                io.append((time, output_post, [False, *data]))
+                time += 2
+                for i in range(3):
+                    io.append((time, output_post, [False, *data]))
+                    time += 2
+
+            return io
+    return RegisterTest
+
+
+Register2Test = make_register_test(2)
+Register5Test = make_register_test(5)
+Register6Test = make_register_test(6)
 
 
 class TempTest(tester.Test):
