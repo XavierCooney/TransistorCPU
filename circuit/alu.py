@@ -14,8 +14,8 @@ class HalfAdder(component.Component):
         #       but speed might able to be improved a bit. Also
         #       when chained toogether the negation of the carry
         #       in the and gate is unnecessary.
-        carry_and = self.add_component(gates_nmos.AndGate(None, 'carry_and'))
-        sum_xor = self.add_component(gates_nmos.XOrGate(None, 'sum_xor'))
+        carry_and = self.add_component(gates_nmos.AndGate(self, 'carry_and'))
+        sum_xor = self.add_component(gates_nmos.XOrGate(self, 'sum_xor'))
 
         self.connect('a', sum_xor.nodes['a'])
         self.connect('b', sum_xor.nodes['b'])
