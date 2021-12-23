@@ -6,47 +6,47 @@ Total: 53 bits => 424 transistors
  - Opcode (1 word, 6 bits)
  - MAR (3 words, 18 bits)
  - Data input register (1 word + 1 bit for ready flag, total 7 bits)
-
+memor
 ## Execution Steps:
  1. Fetch
     1. Read from RAM with PC selected at offset 0 into Opcode
  2. Execute based on Opcode
-    1. Read memeory into A:
-        1. Read from RAM with PC selected at offset 1 into MAR0
+    1. Read memory into A (100000):
+        1. Read from RAM with PC selected at offset 1 into MAR2
         2. Read from RAM with PC selected at offset 2 into MAR1
-        3. Read from RAM with PC selected at offset 3 into MAR2
+        3. Read from RAM with PC selected at offset 3 into MAR0
         4. Read from RAM with MAR into A
-    2. Write memeory from A:
-        1. Read from RAM with PC selected at offset 1 into MAR0
+    2. Write memory from A (110000):
+        1. Read from RAM with PC selected at offset 1 into MAR2
         2. Read from RAM with PC selected at offset 2 into MAR1
-        3. Read from RAM with PC selected at offset 3 into MAR2
+        3. Read from RAM with PC selected at offset 3 into MAR0
         4. Write to RAM with MAR from A
-    3. Increment A
+    3. Read memeory into A based off A (101000):
+        1. Read from RAM with PC selected at offset 1 into MAR2
+        2. Read from RAM with PC selected at offset 2 into MAR1
+        3. Write A to MAR0
+        4. Read from RAM with MAR into A
+    4. Increment A (010000):
         1. Write ALU output of inc(A) into MAR0 (or any other temp)
         2. Write MAR0 into A
-    4. NAND A with immediate operand (maybe)
+    5. NAND A with immediate operand (maybe)
         1. Read from RAM with PC selected at offset 1 into MAR0
         2. Write ALU output of NAND(MAR0, A) into MAR1
         3. Write MAR1 into A
-    5. Unconditional jump
+    6. Unconditional jump (001100)
+        1. Read from RAM with PC selected at offset 1 into MAR2
+        2. Read from RAM with PC selected at offset 2 into MAR1
+        3. Read from RAM with PC selected at offset 3 into MAR0
+        4. Write MAR to PC
+    7. Conditional jump [A = 0: 001010, input ready: 001001]
         1. Read from RAM with PC selected at offset 1 into MAR0
         2. Read from RAM with PC selected at offset 2 into MAR1
         3. Read from RAM with PC selected at offset 3 into MAR2
         4. Write MAR to PC
-    6. Conditional jump (A=0, input ready)
-        1. Read from RAM with PC selected at offset 1 into MAR0
-        2. Read from RAM with PC selected at offset 2 into MAR1
-        3. Read from RAM with PC selected at offset 3 into MAR2
-        4. Write MAR to PC
-    7. Read memeory into A based off A:
-        1. Read from RAM with PC selected at offset 1 into MAR0
-        2. Read from RAM with PC selected at offset 2 into MAR1
-        3. Write A to MAR2
-        4. Read from RAM with MAR into A
-    8. Output A
+    8. Output A (000010)
         1. Read from RAM with PC selected at offset 1 into MAR2
         2. Perform write of A to output, based on MAR2?
- 3. Increment
+ 3. Increment PC
     1. Write inc(PC) to MAR
     2. Write MAR to PC
 
@@ -73,4 +73,4 @@ Total: 17
 
 
 ## Other big cirucits
- 1. Incrementor: Maybe 8 bits wide? So blocks of 256 instructions. So then 72 transistors
+ 1. Incrementor: Maybe 10 bits wide? So blocks of 1024 instructions. So then 91 transistors
