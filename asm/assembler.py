@@ -35,7 +35,7 @@ class NumericArgument(Argument):
 
 
 class CodeArgument(Argument):
-    def __init__(self, lines: str):
+    def __init__(self, lines: typ.List[str]):
         self.lines = lines
 
 
@@ -51,7 +51,7 @@ class InstructionMacro:
 
     def execute(
         self, args: typ.List['Argument'],
-        assembler: 'Assembler', context: 'Context'
+        assembler: 'Assembler', executing_context: 'Context'
     ) -> None:
         if len(self.arg_names) != len(args):
             raise ParseError(
@@ -62,8 +62,8 @@ class InstructionMacro:
         for arg_name, arg_val in zip(self.arg_names, args):
             new_context.define_variable(arg_name, arg_val)
 
-        parser = Parser(assembler, self.code_block.lines)
-        parser.parse_program(self.context)
+        parser = Parser(assembler, '\n'.join(self.code_block.lines))
+        parser.parse_program(new_context)
 
 
 class Context:
@@ -91,6 +91,11 @@ class Context:
     def define_variable(self, var_name: str, var_value: Argument) -> None:
         assert var_name not in self.variables
         self.variables[var_name] = var_value
+
+    def define_instruction(self, macro: InstructionMacro) -> None:
+        name = macro.name
+        assert name not in self.instruction_macros
+        self.instruction_macros[name] = macro
 
 
 class Assembler:
@@ -122,6 +127,49 @@ class Assembler:
             else:
                 assert False, f"DATA expects numeric arg, not {type(arg)}"
 
+    def run_define_command(
+        self, args: typ.List[Argument], ctx: Context
+    ) -> None:
+        if len(args) < 1 or not isinstance(args[0], IdentifierArgument):
+            raise ParseError("Need define type for DEFINE command")
+
+        define_type = args[0].contents.upper()
+
+        if define_type == 'INSTRUCTION':
+            if len(args) < 2 or not isinstance(args[1], IdentifierArgument):
+                raise ParseError("Need instruction name")
+
+            macro_name = args[1].contents
+            macro_arg_name_identifiers = args[2:-1]
+            arg_names = []
+
+            for arg_identifier in macro_arg_name_identifiers:
+                if not isinstance(arg_identifier, IdentifierArgument):
+                    raise ParseError("Expected argument name")
+
+                arg_name = arg_identifier.contents
+                if arg_name in arg_names:
+                    raise ParseError(f"Duplicate argument name {arg_name}")
+                arg_names.append(arg_name)
+
+            code_block = args[-1]
+            if not isinstance(code_block, CodeArgument):
+                raise ParseError("Expected code block to define instruction")
+
+            macro = InstructionMacro(macro_name, code_block, arg_names, ctx)
+            ctx.define_instruction(macro)
+        elif define_type == 'VARIABLE':
+            if len(args) != 3:
+                raise ParseError('Need 3 args for variable definition')
+
+            if not isinstance(args[1], IdentifierArgument):
+                raise ParseError("Need variable name")
+            var_name = args[1].contents
+
+            ctx.define_variable(var_name, args[2])
+        else:
+            raise ParseError('Unknown define type')
+
     def process_command(
         self, command_name: str,
         arguments: typ.List[Argument],
@@ -131,14 +179,17 @@ class Assembler:
 
         if command_name == 'DATA':
             self.run_data_command(arguments)
+        elif command_name == 'DEFINE':
+            self.run_define_command(arguments, context)
         elif macro_command := context.find_instruction_macro(command_name):
             macro_command.execute(arguments, self, context)
         else:
-            assert False, "Unknown command "
+            raise ParseError("Unknown command")
 
 
 class Parser:
     IDENTIFIER_REGEX = r'[a-zA-Z_][a-zA-Z_0-9=]*'
+    VARIABLE_USEAGE_REGEX = r'\$([a-zA-Z_][a-zA-Z_0-9=]*)'
     NUMERIC_REGEX = r'(0b[01]+)|(0x[a-fA-F0-9]+)|([1-9][0-9]*)|0'
 
     def __init__(self, assembler: Assembler, source_contents: str) -> None:
@@ -200,6 +251,40 @@ class Parser:
                 word_size = int(m_word_size.group(1))
             self.expect("")
             return NumericArgument(value, word_size)
+        elif m := self.accept('{'):
+            self.accept('\n')
+            lines = []
+            current_line_components = []
+            depth = 0  # TODO: do this more sohpisticated wrt comments, etc.
+            while True:
+                line_segment = self.expect('[^\n{}]*').group(0)
+                current_line_components.append(line_segment)
+
+                if m := self.accept('}'):
+                    if depth == 0:
+                        break
+                    else:
+                        current_line_components.append('}')
+                        depth -= 1
+                elif m := self.accept('{'):
+                    current_line_components.append('{')
+                    depth += 1
+                elif self.accept('\n'):
+                    lines.append(''.join(current_line_components))
+                    current_line_components = []
+
+            lines.append(''.join(current_line_components))
+            current_line_components = []
+
+            return CodeArgument(lines)
+        elif m := self.accept(self.VARIABLE_USEAGE_REGEX):
+            variable_name = m.group(1)
+            var_value = context.find_variable_value(variable_name)
+
+            if var_value is not None:
+                return var_value
+            else:
+                raise ParseError(f"Can't find variable {variable_name}")
         else:
             raise ParseError("Expected argument")
 

@@ -23,6 +23,30 @@ add_simple_test("test2", """DATA 0""", [0])
 add_simple_test("test3", """DATA 0, 1""", [0, 1])
 add_simple_test("test4", """DATA 4, 3,""", [4, 3])
 add_simple_test("test5", """DATA 4, 3""", [4, 3, None])
+add_simple_test("test6", """
+DATA 4, 3
+DATA 5, 6
+""", [4, 3, 5, 6])
+
+add_simple_test("macro1", """
+DEFINE INSTRUCTION, DO_SOMETHING, a, b, {
+    DEFINE VARIABLE, c, 3
+    DATA $a, $c, $b
+}
+DO_SOMETHING 8, 9
+""", [8, 3, 9])
+
+add_simple_test("macro2", """
+DEFINE INSTRUCTION, DO_SOMETHING, a, b, {
+    DEFINE INSTRUCTION, WOW, f, e, g, {
+        DATA $e, $f, $g
+    }
+    DEFINE VARIABLE, c, 3
+    WOW $a, $c, $b
+}
+DO_SOMETHING 8, 9
+""", [3, 8, 9])
+
 
 if __name__ == '__main__':
     for test in tests:
