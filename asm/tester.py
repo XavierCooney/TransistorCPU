@@ -29,7 +29,7 @@ DATA 5, 6
 """, [4, 3, 5, 6])
 
 add_simple_test("macro1", """
-DEFINE INSTRUCTION, DO_SOMETHING, a, b, {
+DEFINE COMMAND, DO_SOMETHING, a, b, {
     DEFINE VARIABLE, c, 3
     DATA $a, $c, $b
 }
@@ -37,15 +37,15 @@ DO_SOMETHING 8, 9
 """, [8, 3, 9])
 
 add_simple_test("macro2", """
-DEFINE INSTRUCTION, DO_SOMETHING, a, b, {
-    DEFINE INSTRUCTION, WOW, f, e, g, {
-        DATA $e, $f, $g
+DEFINE COMMAND, DO_SOMETHING, a, b, {
+    DEFINE COMMAND, WOW, f, e, g, {
+        DATA $e, $f, $g, wat
     }
     DEFINE VARIABLE, c, 3
     WOW $a, $c, $b
 }
 DO_SOMETHING 8, 9
-""", [3, 8, 9])
+""".strip(), [3, 8, 9])
 
 
 if __name__ == '__main__':
@@ -54,7 +54,12 @@ if __name__ == '__main__':
         test_name, test_source, test_expected = test
         print(f" == {test_name} ==")
         asm = assembler.Assembler()
-        asm.assemble_source(test[1])
+
+        try:
+            asm.assemble_source(test[1], f'<test {test_name}>')
+        except assembler.ParseError as err:
+            err.print_info()
+            break
 
         if asm.data != test_expected:
             first_discrepency = [
