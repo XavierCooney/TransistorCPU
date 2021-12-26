@@ -40,6 +40,11 @@ class ParseError(AssemblyError):
         print(f"\n >>> {self.msg}\n")
 
 
+class ValueNotReadyException(Exception):
+    def __init__(self, msg: str):
+        self.msg = msg
+
+
 class Value(abc.ABC):
     pass
 
@@ -68,24 +73,40 @@ class NumericValue(Value):
 
 
 class ConstantNumericValue(NumericValue):
-    num_words: int
-
     def __init__(self, value: int, num_words: int):
         self.value = value
         self.num_words = num_words
 
-    def as_word_array(self, asm: 'Assembler') -> typ.Optional[typ.List[int]]:
+    @staticmethod
+    def int_to_words(value: int, num_words: int) -> typ.List[int]:
         words_reversed = []
-        val = self.value
+        val = value
         while val:
             words_reversed.append(val % 64)
             val //= 64
 
-        words_reversed.extend([0] * (self.num_words - len(words_reversed)))
-        if len(words_reversed) != self.num_words:
+        words_reversed.extend([0] * (num_words - len(words_reversed)))
+        if len(words_reversed) != num_words:
             raise ParseError('Number too big')
 
         return words_reversed[::-1]
+
+    def as_word_array(self, asm: 'Assembler') -> typ.Optional[typ.List[int]]:
+        return self.int_to_words(self.value, self.num_words)
+
+
+class LabelValue(NumericValue):
+    def __init__(self, name: str):
+        self.name = name
+        self.num_words = 3
+
+    def as_word_array(self, asm: 'Assembler') -> typ.Optional[typ.List[int]]:
+        if self.name not in asm.label_values:
+            raise ValueNotReadyException(f"Can't find label {self.name}")
+
+        return ConstantNumericValue.int_to_words(
+            asm.label_values[self.name], 3
+        )
 
 
 class MakeResultValue(NumericValue):
@@ -154,6 +175,11 @@ class Context:
         self.instruction_macros: typ.Dict[str, InstructionMacro] = {}
         self.variables: typ.Dict[str, Value] = {}
 
+        if self.parent is not None:
+            self.last_global_label: str = self.parent.last_global_label
+        else:
+            self.last_global_label = '_global_start'
+
     def find_instruction_macro(
         self, name: str
     ) -> typ.Optional[InstructionMacro]:
@@ -213,6 +239,7 @@ class Assembler:
         self.data_values: typ.List[
             typ.Tuple[int, NumericValue, ProgramTraceback]
         ] = []
+        self.label_values: typ.Dict[str, int] = {}
         self.ip = 0
 
     def assemble_file(self, file_name: str) -> None:
@@ -230,6 +257,11 @@ class Assembler:
         parser = Parser(self, lines, line_mapping, source_origin, None)
 
         parser.parse_program(Context(None))
+
+    def declare_label(self, label: str) -> None:
+        if label in self.label_values:
+            raise ParseError(f'Redeclaration of label {label}!')
+        self.label_values[label] = self.ip
 
     def run_data_command(
         self, arguments: typ.List[Value], traceback: ProgramTraceback
@@ -331,6 +363,7 @@ class Parser:
     IDENTIFIER_REGEX = r'[a-zA-Z_][a-zA-Z_0-9=]*'
     VARIABLE_USEAGE_REGEX = r'\$([a-zA-Z_][a-zA-Z_0-9=]*)'
     NUMERIC_REGEX = r'(0b[01]+)|(0x[a-fA-F0-9]+)|([1-9][0-9]*)|0'
+    LABEL_REGEX = r':(.?)([a-zA-Z_][a-zA-Z_0-9=.]*)'
 
     def __init__(
         self, assembler: Assembler, virtual_lines: typ.List[str],
@@ -454,6 +487,17 @@ class Parser:
             self.expect("")
             return ConstantNumericValue(value, word_size)
 
+        elif m := self.accept(self.LABEL_REGEX):
+            is_local = bool(m.group(1))
+            name = m.group(2)
+
+            if is_local:
+                label = f'{context.last_global_label}.{name}'
+            else:
+                label = name
+
+            return LabelValue(label)
+
         elif m := self.accept('{'):
             self.accept('\n')
             lines = []
@@ -509,27 +553,45 @@ class Parser:
             raise ParseError("Expected argument")
 
     def parse_command(self, ctx: Context) -> None:
+        self.advance(0)
+        command_starting_line = self.line_num
+        command_name = self.expect(self.IDENTIFIER_REGEX).group(0)
+        self.last_command_line_num = command_starting_line
+
+        arguments = []
+
+        while self.rest_of_line() != '\n':
+            arguments.append(self.parse_arg(ctx))
+
+            if self.rest_of_line() != '\n':
+                self.expect(',')
+
         try:
-            self.advance(0)
-            command_starting_line = self.line_num
-            command_name = self.expect(self.IDENTIFIER_REGEX).group(0)
-            self.last_command_line_num = command_starting_line
-
-            arguments = []
-
-            while self.rest_of_line() != '\n':
-                arguments.append(self.parse_arg(ctx))
-
-                if self.rest_of_line() != '\n':
-                    self.expect(',')
-
+            self.assembler.process_command(
+                command_name, arguments, ctx, self.current_traceback()
+            )
         except ParseError as parse_err:
-            self.handle_parse_error(parse_err, False)
+            self.handle_parse_error(parse_err, True)
             raise
 
-        self.assembler.process_command(
-            command_name, arguments, ctx, self.current_traceback()
-        )
+    def accept_label_declaration(self, ctx: Context) -> bool:
+        match = self.accept(self.LABEL_REGEX)
+
+        if not match:
+            return False
+
+        is_local = bool(match.group(1))
+        name = match.group(2)
+
+        if is_local:
+            label = f'{ctx.last_global_label}.{name}'
+        else:
+            ctx.last_global_label = name.split('.', 2)[0]
+            label = name
+
+        assembler.declare_label(label)
+
+        return True
 
     def accept_comment(self) -> None:
         self.accept(r'[ \t]*[rR][eE][mM][^\n]*')
@@ -559,11 +621,13 @@ class Parser:
                 if self.accept(r'\n'):
                     continue
 
-                self.parse_command(ctx)
+                if not self.accept_label_declaration(ctx):
+                    self.parse_command(ctx)
+
                 self.accept_comment()
                 self.expect(r'\n')
         except ParseError as parse_err:
-            self.handle_parse_error(parse_err, True)
+            self.handle_parse_error(parse_err, False)
             raise
 
 
