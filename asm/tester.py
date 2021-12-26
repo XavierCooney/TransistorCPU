@@ -39,7 +39,7 @@ DO_SOMETHING 8, 9
 add_simple_test("macro2", """
 DEFINE COMMAND, DO_SOMETHING, a, b, {
     DEFINE COMMAND, WOW, f, e, g, {
-        DATA $e, $f, $g, wat
+        DATA $e, $f, $g
     }
     DEFINE VARIABLE, c, 3
     WOW $a, $c, $b
@@ -61,16 +61,18 @@ if __name__ == '__main__':
             err.print_info()
             break
 
-        if asm.data != test_expected:
+        data = asm.link_data()
+
+        if data != test_expected:
             first_discrepency = [
                 actual != expected
-                for actual, expected in zip(asm.data, test_expected)
+                for actual, expected in zip(data, test_expected)
             ].index(True)
 
             print(f"Discrepancy at {first_discrepency}:")
             explanation_start = max(0, first_discrepency - 5)
 
-            for row_num, row in enumerate((test_expected, asm.data)):
+            for row_num, row in enumerate((test_expected, data)):
                 print(["Expected", "Actual  "][row_num], end='  ')
                 for term in row[explanation_start:explanation_start+10]:
                     if term is None:

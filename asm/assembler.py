@@ -1,3 +1,4 @@
+import abc
 import os
 import re
 import sys
@@ -23,21 +24,41 @@ class ParseError(Exception):
         print(f"\n >>> {self.msg}\n")
 
 
-class Argument:
+class Value(abc.ABC):
     pass
 
 
-class IdentifierArgument(Argument):
+class IdentifierValue(Value):
     def __init__(self, contents: str):
         self.contents = contents
 
 
-class NumericArgument(Argument):
+class NumericValue(Value):
+    @abc.abstractmethod
+    def as_word_array(self, asm: 'Assembler') -> typ.Optional[typ.List[int]]:
+        pass
+
+    def as_integer(self, asm: 'Assembler') -> typ.Optional[int]:
+        word_array = self.as_word_array(asm)
+        if word_array is None:
+            return None
+
+        return sum(
+            word * 2 ** (6 * (self.num_words - i - 1))
+            for i, word in enumerate(word_array)
+        )
+
+    num_words: int
+
+
+class ConstantNumericValue(NumericValue):
+    num_words: int
+
     def __init__(self, value: int, num_words: int):
         self.value = value
         self.num_words = num_words
 
-    def as_word_array(self) -> typ.List[int]:
+    def as_word_array(self, asm: 'Assembler') -> typ.Optional[typ.List[int]]:
         words_reversed = []
         val = self.value
         while val:
@@ -51,7 +72,24 @@ class NumericArgument(Argument):
         return words_reversed[::-1]
 
 
-class CodeArgument(Argument):
+class MakeResultValue(NumericValue):
+    def __init__(self, constituents: typ.List[NumericValue]):
+        self.constituents = constituents
+        self.num_words = sum(
+            constituent.num_words for constituent in constituents
+        )
+
+    def as_word_array(self, asm: 'Assembler') -> typ.Optional[typ.List[int]]:
+        word_array = []
+        for constituent in self.constituents:
+            constituent_result = constituent.as_word_array(asm)
+            if constituent_result is None:
+                return None
+            word_array.extend(constituent_result)
+        return word_array
+
+
+class CodeValue(Value):
     def __init__(
         self, lines: typ.List[str], line_mapping: typ.List[int], origin: str
     ):
@@ -64,7 +102,7 @@ class CodeArgument(Argument):
 
 class InstructionMacro:
     def __init__(
-        self, name: str, code_block: CodeArgument,
+        self, name: str, code_block: CodeValue,
         arg_names: typ.List[str], context: 'Context'
     ) -> None:
         self.name = name
@@ -73,12 +111,12 @@ class InstructionMacro:
         self.context = context
 
     def execute(
-        self, args: typ.List['Argument'],
+        self, args: typ.List['Value'],
         assembler: 'Assembler', executing_context: 'Context'
     ) -> None:
         if len(self.arg_names) != len(args):
             raise ParseError(
-                f"Expected {len(self.arg_names)} args, got {len(args)}"
+                f"Expected {len(self.arg_names)} arg(s), got {len(args)}"
             )
 
         new_context = Context(self.context)
@@ -97,7 +135,7 @@ class Context:
     def __init__(self, parent: typ.Optional['Context']):
         self.parent = parent
         self.instruction_macros: typ.Dict[str, InstructionMacro] = {}
-        self.variables: typ.Dict[str, Argument] = {}
+        self.variables: typ.Dict[str, Value] = {}
 
     def find_instruction_macro(
         self, name: str
@@ -108,14 +146,14 @@ class Context:
             return self.parent.find_instruction_macro(name)
         return None
 
-    def find_variable_value(self, name: str) -> typ.Optional[Argument]:
+    def find_variable_value(self, name: str) -> typ.Optional[Value]:
         if name in self.variables:
             return self.variables[name]
         if self.parent is not None:
             return self.find_variable_value(name)
         return None
 
-    def define_variable(self, var_name: str, var_value: Argument) -> None:
+    def define_variable(self, var_name: str, var_value: Value) -> None:
         if var_name in self.variables:
             raise ParseError(f"Redefinition of variable `{var_name}`")
 
@@ -131,7 +169,8 @@ class Context:
 
 class Assembler:
     def __init__(self) -> None:
-        self.data: typ.List[typ.Optional[int]] = [None] * (2 ** 18)
+        self.written_flags: typ.List[typ.Optional[bool]] = [None] * (2 ** 18)
+        self.data_values: typ.List[typ.Tuple[int, NumericValue]] = []
         self.ip = 0
 
     def assemble_file(self, file_name: str) -> None:
@@ -150,31 +189,50 @@ class Assembler:
 
         parser.parse_program(Context(None))
 
-    def run_data_command(self, arguments: typ.List[Argument]) -> None:
+    def run_data_command(self, arguments: typ.List[Value]) -> None:
         for arg in arguments:
-            if isinstance(arg, NumericArgument):
-                words = arg.as_word_array()
-                for word in words:
-                    if self.data[self.ip] is not None:
-                        if self.data[self.ip] != word:
-                            raise ParseError('Invalid rewrite of data')
-                    else:
-                        self.data[self.ip] = word
-                        self.ip += 1
-                        assert self.ip < 2**16
-            else:
-                raise ParseError(f"DATA expects numeric arg, not {type(arg)}")
+            if not isinstance(arg, NumericValue):
+                raise ParseError(f'DATA expects numeric arg, not {type(arg)}')
+
+            num_words = arg.num_words
+
+            start_ip = self.ip
+
+            for word_num in range(num_words):
+                if self.written_flags[self.ip]:
+                    raise ParseError('DATA rewrite')
+                else:
+                    self.written_flags[self.ip] = True
+                    self.ip += 1
+                    assert self.ip < 2**16
+
+            self.data_values.append((start_ip, arg))
+
+    def link_data(self) -> typ.List[typ.Optional[int]]:
+        data: typ.List[typ.Optional[int]] = [None] * (2 ** 18)
+
+        for value_start, numeric_value in self.data_values:
+            word_array = numeric_value.as_word_array(self)
+
+            # TODO: handle this and parse errors nicer
+            assert word_array is not None
+
+            for word_num, word in enumerate(word_array):
+                assert data[word_num + value_start] is None
+                data[word_num + value_start] = word
+
+        return data
 
     def run_define_command(
-        self, args: typ.List[Argument], ctx: Context
+        self, args: typ.List[Value], ctx: Context
     ) -> None:
-        if len(args) < 1 or not isinstance(args[0], IdentifierArgument):
+        if len(args) < 1 or not isinstance(args[0], IdentifierValue):
             raise ParseError("Need define type for DEFINE command")
 
         define_type = args[0].contents.upper()
 
         if define_type == 'COMMAND':
-            if len(args) < 2 or not isinstance(args[1], IdentifierArgument):
+            if len(args) < 2 or not isinstance(args[1], IdentifierValue):
                 raise ParseError("Need instruction name")
 
             macro_name = args[1].contents
@@ -182,7 +240,7 @@ class Assembler:
             arg_names = []
 
             for arg_identifier in macro_arg_name_identifiers:
-                if not isinstance(arg_identifier, IdentifierArgument):
+                if not isinstance(arg_identifier, IdentifierValue):
                     raise ParseError("Expected argument name")
 
                 arg_name = arg_identifier.contents
@@ -191,7 +249,7 @@ class Assembler:
                 arg_names.append(arg_name)
 
             code_block = args[-1]
-            if not isinstance(code_block, CodeArgument):
+            if not isinstance(code_block, CodeValue):
                 raise ParseError("Expected code block to define instruction")
 
             macro = InstructionMacro(macro_name, code_block, arg_names, ctx)
@@ -200,7 +258,7 @@ class Assembler:
             if len(args) != 3:
                 raise ParseError('Need 3 args for variable definition')
 
-            if not isinstance(args[1], IdentifierArgument):
+            if not isinstance(args[1], IdentifierValue):
                 raise ParseError("Need variable name")
             var_name = args[1].contents
 
@@ -210,7 +268,7 @@ class Assembler:
 
     def process_command(
         self, command_name: str,
-        arguments: typ.List[Argument],
+        arguments: typ.List[Value],
         context: Context
     ) -> None:
         command_name = command_name.upper()
@@ -284,16 +342,56 @@ class Parser:
         else:
             raise ParseError(f'Expected `{regex}`')
 
-    def parse_arg(self, context: Context) -> Argument:
+    def parse_function_call(self, name: str, context: Context) -> Value:
+        args = []
+        while True:
+            args.append(self.parse_arg(context))
+
+            if self.accept(r'\)'):
+                break
+            else:
+                self.expect(',')
+
+        # TODO: handle errors with function execution better
+        if name == 'make':
+            if len(args) == 0:
+                raise ParseError("Need size argument")
+
+            num_words_arg, *rest = args
+            if not isinstance(num_words_arg, ConstantNumericValue):
+                raise ParseError("Size argument must be a number constant")
+            num_words = num_words_arg.value
+
+            constitutents = []
+            for value in rest:
+                if not isinstance(value, NumericValue):
+                    raise ParseError(f"Need numeric value, not {type(value)}")
+                constitutents.append(value)
+
+            result = MakeResultValue(constitutents)
+
+            if result.num_words != num_words:
+                raise ParseError(
+                    f"Needed {num_words} words, got {result.num_words}"
+                )
+
+            return result
+        else:
+            raise ParseError(f"Unknown method {name}")
+
+    def parse_arg(self, context: Context) -> Value:
         if m := self.accept(self.IDENTIFIER_REGEX):
-            return IdentifierArgument(m.group(0))
+            if self.accept(r'\('):
+                return self.parse_function_call(m.group(0), context)
+            else:
+                return IdentifierValue(m.group(0))
         elif m := self.accept(self.NUMERIC_REGEX, False):
             value = int(m.group(0), base=0)
             word_size = 1
-            if m_word_size := self.accept(r'_([1-3])'):
+            if m_word_size := self.accept(r'_([1-9]+)'):
                 word_size = int(m_word_size.group(1))
             self.expect("")
-            return NumericArgument(value, word_size)
+            return ConstantNumericValue(value, word_size)
         elif m := self.accept('{'):
             self.accept('\n')
             lines = []
@@ -331,7 +429,7 @@ class Parser:
 
             current_line_components = []
 
-            return CodeArgument(lines, line_mapping, self.source_origin)
+            return CodeValue(lines, line_mapping, self.source_origin)
         elif m := self.accept(self.VARIABLE_USEAGE_REGEX):
             variable_name = m.group(1)
             var_value = context.find_variable_value(variable_name)
@@ -407,9 +505,10 @@ if __name__ == '__main__':
     assembler = Assembler()
     try:
         assembler.assemble_file(filename)
+        data = assembler.link_data()
         print(" addr | data")
-        for i, data in enumerate(assembler.data):
-            if data is not None:
-                print(f" {i:4} | {data:4}")
+        for i, word in enumerate(data):
+            if word is not None:
+                print(f" {i:4} | {word:4}")
     except ParseError as err:
         err.print_info()

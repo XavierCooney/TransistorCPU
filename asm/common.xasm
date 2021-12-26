@@ -1,0 +1,22 @@
+DEFINE COMMAND, INSTRUCTION_DATA, data, {
+    REM TODO: check alignment, wraparound
+    DATA make(4, $data)
+}
+
+DEFINE COMMAND, LOAD_A, address, {
+    INSTRUCTION_DATA make(4, 0b100000, $address)
+}
+DEFINE COMMAND, STORE_A, address, {
+    INSTRUCTION_DATA make(4, 0b110000, $address)
+}
+DEFINE COMMAND, UNARY_OP, address_start, {
+    INSTRUCTION_DATA make(4, 0b101000, $address_start, 0_1)
+}
+DEFINE COMMAND, INC_A, {
+    INSTRUCTION_DATA make(4, 0b010000, 0_3)
+}
+DEFINE COMMAND, OUTPUT_A, {
+    INSTRUCTION_DATA make(4, 0b000010, 0_3)
+}
+
+LOAD_A make(3, 0, 1, 2)
