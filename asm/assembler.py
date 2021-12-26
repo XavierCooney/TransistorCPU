@@ -5,7 +5,23 @@ import sys
 import typing as typ
 
 
-class ParseError(Exception):
+class AssemblyError(abc.ABC, Exception):
+    @abc.abstractmethod
+    def print_info(self) -> None: pass
+
+
+class LinkTimeError(AssemblyError):
+    def __init__(self, lines: typ.List[str], msg: str) -> None:
+        self.lines = lines
+        self.msg = msg
+
+    def print_info(self) -> None:
+        print("\n !!! Program Error !!!")
+        print('\n'.join(self.lines))
+        print(f"\n >>> {self.msg}\n")
+
+
+class ParseError(AssemblyError):
     def __init__(self, msg: str) -> None:
         self.asm_traceback: typ.List[typ.List[str]] = []
         self.registered_parsers: typ.Set['Parser'] = set()
@@ -16,7 +32,7 @@ class ParseError(Exception):
         self.registered_parsers.add(parser)
 
     def print_info(self) -> None:
-        print("\n !!! Programming Error !!!")
+        print("\n !!! Parsing Error !!!")
         lines = '\n'.join(
             '\n'.join(entry) for entry in self.asm_traceback[::-1]
         )
@@ -91,11 +107,13 @@ class MakeResultValue(NumericValue):
 
 class CodeValue(Value):
     def __init__(
-        self, lines: typ.List[str], line_mapping: typ.List[int], origin: str
+        self, lines: typ.List[str], line_mapping: typ.List[int], origin: str,
+        traceback: 'ProgramTraceback'
     ):
         self.lines = lines
         self.line_mapping = line_mapping
         self.origin = origin
+        self.traceback = traceback
 
         assert len(self.lines) == len(self.line_mapping)
 
@@ -124,9 +142,8 @@ class InstructionMacro:
             new_context.define_variable(arg_name, arg_val)
 
         parser = Parser(
-            assembler, self.code_block.lines,
-            self.code_block.line_mapping,
-            self.code_block.origin
+            assembler, self.code_block.lines, self.code_block.line_mapping,
+            self.code_block.origin, self.code_block.traceback
         )
         parser.parse_program(new_context)
 
@@ -167,10 +184,35 @@ class Context:
         self.instruction_macros[name] = macro
 
 
+class ProgramTraceback:
+    def __init__(
+        self, previous: typ.Optional['ProgramTraceback'], lines: typ.List[str]
+    ) -> None:
+        self.previous = previous
+        self.lines = lines
+
+    def print(self) -> None:
+        if self.previous is not None:
+            self.previous.print()
+        print('\n'.join(self.lines + ['']))
+
+    def gather_lines(self, lines: typ.List[str]) -> None:
+        if self.previous is not None:
+            self.previous.gather_lines(lines)
+        lines.extend(self.lines)
+
+    def trigger_error(self, msg: str) -> typ.NoReturn:
+        total_lines: typ.List[str] = []
+        self.gather_lines(total_lines)
+        raise LinkTimeError(total_lines, msg)
+
+
 class Assembler:
     def __init__(self) -> None:
         self.written_flags: typ.List[typ.Optional[bool]] = [None] * (2 ** 18)
-        self.data_values: typ.List[typ.Tuple[int, NumericValue]] = []
+        self.data_values: typ.List[
+            typ.Tuple[int, NumericValue, ProgramTraceback]
+        ] = []
         self.ip = 0
 
     def assemble_file(self, file_name: str) -> None:
@@ -185,11 +227,13 @@ class Assembler:
         line_mapping = [
             line_index + 1 for line_index in range(len(lines))
         ]
-        parser = Parser(self, lines, line_mapping, source_origin)
+        parser = Parser(self, lines, line_mapping, source_origin, None)
 
         parser.parse_program(Context(None))
 
-    def run_data_command(self, arguments: typ.List[Value]) -> None:
+    def run_data_command(
+        self, arguments: typ.List[Value], traceback: ProgramTraceback
+    ) -> None:
         for arg in arguments:
             if not isinstance(arg, NumericValue):
                 raise ParseError(f'DATA expects numeric arg, not {type(arg)}')
@@ -206,16 +250,16 @@ class Assembler:
                     self.ip += 1
                     assert self.ip < 2**16
 
-            self.data_values.append((start_ip, arg))
+            self.data_values.append((start_ip, arg, traceback))
 
     def link_data(self) -> typ.List[typ.Optional[int]]:
         data: typ.List[typ.Optional[int]] = [None] * (2 ** 18)
 
-        for value_start, numeric_value in self.data_values:
+        for value_start, numeric_value, traceback in self.data_values:
             word_array = numeric_value.as_word_array(self)
 
-            # TODO: handle this and parse errors nicer
-            assert word_array is not None
+            if word_array is None:
+                traceback.trigger_error("Failed to evaluate data")
 
             for word_num, word in enumerate(word_array):
                 assert data[word_num + value_start] is None
@@ -269,12 +313,12 @@ class Assembler:
     def process_command(
         self, command_name: str,
         arguments: typ.List[Value],
-        context: Context
+        context: Context, traceback: ProgramTraceback
     ) -> None:
         command_name = command_name.upper()
 
         if command_name == 'DATA':
-            self.run_data_command(arguments)
+            self.run_data_command(arguments, traceback)
         elif command_name == 'DEFINE':
             self.run_define_command(arguments, context)
         elif macro_command := context.find_instruction_macro(command_name):
@@ -290,17 +334,20 @@ class Parser:
 
     def __init__(
         self, assembler: Assembler, virtual_lines: typ.List[str],
-        virtual_line_mapping: typ.List[int], original_file_name: str
+        virtual_line_mapping: typ.List[int], original_file_name: str,
+        parent_traceback: typ.Optional[ProgramTraceback]
     ) -> None:
         self.lines = [
             line + '\n' for line in virtual_lines
         ]
         self.line_num = 0
+        self.last_command_line_num = 0
         self.column_num = 0
         self.assembler = assembler
 
         self.line_mapping = virtual_line_mapping
         self.source_origin = original_file_name
+        self.parent_traceback = parent_traceback
 
     def advance(self, length: int, skip_whitespace: bool = True) -> None:
         self.column_num += length
@@ -379,12 +426,26 @@ class Parser:
         else:
             raise ParseError(f"Unknown method {name}")
 
+    def current_traceback(self) -> ProgramTraceback:
+        offending_line_contents = self.lines[self.last_command_line_num][:-1]
+
+        traceback = []
+        traceback.append(
+            f"At {self.source_origin} on line "
+            f"{self.line_mapping[self.last_command_line_num]}:"
+        )
+        traceback.append(f"    {offending_line_contents}")
+        traceback.append("    " + "^" * len(offending_line_contents))
+
+        return ProgramTraceback(self.parent_traceback, traceback)
+
     def parse_arg(self, context: Context) -> Value:
         if m := self.accept(self.IDENTIFIER_REGEX):
             if self.accept(r'\('):
                 return self.parse_function_call(m.group(0), context)
             else:
                 return IdentifierValue(m.group(0))
+
         elif m := self.accept(self.NUMERIC_REGEX, False):
             value = int(m.group(0), base=0)
             word_size = 1
@@ -392,6 +453,7 @@ class Parser:
                 word_size = int(m_word_size.group(1))
             self.expect("")
             return ConstantNumericValue(value, word_size)
+
         elif m := self.accept('{'):
             self.accept('\n')
             lines = []
@@ -429,7 +491,11 @@ class Parser:
 
             current_line_components = []
 
-            return CodeValue(lines, line_mapping, self.source_origin)
+            return CodeValue(
+                lines, line_mapping, self.source_origin,
+                self.current_traceback()
+            )
+
         elif m := self.accept(self.VARIABLE_USEAGE_REGEX):
             variable_name = m.group(1)
             var_value = context.find_variable_value(variable_name)
@@ -438,13 +504,17 @@ class Parser:
                 return var_value
             else:
                 raise ParseError(f"Can't find variable {variable_name}")
+
         else:
             raise ParseError("Expected argument")
 
     def parse_command(self, ctx: Context) -> None:
         try:
             self.advance(0)
+            command_starting_line = self.line_num
             command_name = self.expect(self.IDENTIFIER_REGEX).group(0)
+            self.last_command_line_num = command_starting_line
+
             arguments = []
 
             while self.rest_of_line() != '\n':
@@ -457,7 +527,9 @@ class Parser:
             self.handle_parse_error(parse_err, False)
             raise
 
-        self.assembler.process_command(command_name, arguments, ctx)
+        self.assembler.process_command(
+            command_name, arguments, ctx, self.current_traceback()
+        )
 
     def accept_comment(self) -> None:
         self.accept(r'[ \t]*[rR][eE][mM][^\n]*')
@@ -510,5 +582,5 @@ if __name__ == '__main__':
         for i, word in enumerate(data):
             if word is not None:
                 print(f" {i:4} | {word:4}")
-    except ParseError as err:
+    except AssemblyError as err:
         err.print_info()

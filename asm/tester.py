@@ -57,11 +57,10 @@ if __name__ == '__main__':
 
         try:
             asm.assemble_source(test[1], f'<test {test_name}>')
-        except assembler.ParseError as err:
+            data = asm.link_data()
+        except assembler.AssemblyError as err:
             err.print_info()
             break
-
-        data = asm.link_data()
 
         if data != test_expected:
             first_discrepency = [
