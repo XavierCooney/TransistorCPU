@@ -15,8 +15,19 @@ DEFINE COMMAND, UNARY_OP, address_start, {
 DEFINE COMMAND, INC_A, {
     INSTRUCTION_DATA make(4, 0b010000, 0_3)
 }
-DEFINE COMMAND, OUTPUT_A, {
-    INSTRUCTION_DATA make(4, 0b000010, 0_3)
+DEFINE COMMAND, OUTPUT_A, output_type, {
+    INSTRUCTION_DATA make(4, 0b000010, $output_type, 0_2)
+}
+DEFINE COMMAND, JUMP, address, {
+    INSTRUCTION_DATA make(4, 0b001100, $address)
+}
+DEFINE COMMAND, JUMP_ANZ, address, {
+    INSTRUCTION_DATA make(4, 0b001010, $address)
+}
+DEFINE COMMAND, JUMP_INPUT_READY, address, {
+    INSTRUCTION_DATA make(4, 0b001001, $address)
 }
 
-LOAD_A make(3, 0, 1, 2)
+DEFINE COMMAND, HALT_LOOP, {
+    JUMP $$
+}

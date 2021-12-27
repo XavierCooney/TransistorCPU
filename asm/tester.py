@@ -47,6 +47,12 @@ DEFINE COMMAND, DO_SOMETHING, a, b, {
 DO_SOMETHING 8, 9
 """.strip(), [3, 8, 9])
 
+add_simple_test("include", """
+INCLUDE common
+
+INC_A
+""".strip(), [16, 0, 0, 0])
+
 
 if __name__ == '__main__':
     for test in tests:
@@ -57,7 +63,11 @@ if __name__ == '__main__':
 
         try:
             asm.assemble_source(test[1], f'<test {test_name}>')
-            data = asm.link_data()
+            compiled_program = asm.link_data()
+            data = [
+                word.value if word is not None else None
+                for word in compiled_program.data
+            ]
         except assembler.AssemblyError as err:
             err.print_info()
             break

@@ -38,7 +38,7 @@ memor
         2. Read from RAM with PC selected at offset 2 into MAR1
         3. Read from RAM with PC selected at offset 3 into MAR0
         4. Write MAR to PC
-    7. Conditional jump [A = 0: 001010, input ready: 001001]
+    7. Conditional jump [A != 0: 001010, input ready: 001001]
         1. Read from RAM with PC selected at offset 1 into MAR0
         2. Read from RAM with PC selected at offset 2 into MAR1
         3. Read from RAM with PC selected at offset 3 into MAR2

@@ -4,6 +4,8 @@ import re
 import sys
 import typing as typ
 
+from . import compiled
+
 
 class AssemblyError(abc.ABC, Exception):
     @abc.abstractmethod
@@ -41,12 +43,13 @@ class ParseError(AssemblyError):
 
 
 class ValueNotReadyException(Exception):
-    def __init__(self, msg: str):
+    def __init__(self, msg: str, traceback: typ.Optional['ProgramTraceback']):
         self.msg = msg
+        self.traceback = traceback
 
 
 class Value(abc.ABC):
-    pass
+    backtrace: typ.Optional['ProgramTraceback'] = None
 
 
 class IdentifierValue(Value):
@@ -56,13 +59,11 @@ class IdentifierValue(Value):
 
 class NumericValue(Value):
     @abc.abstractmethod
-    def as_word_array(self, asm: 'Assembler') -> typ.Optional[typ.List[int]]:
+    def as_word_array(self, asm: 'Assembler') -> typ.List[int]:
         pass
 
-    def as_integer(self, asm: 'Assembler') -> typ.Optional[int]:
+    def as_integer(self, asm: 'Assembler') -> int:
         word_array = self.as_word_array(asm)
-        if word_array is None:
-            return None
 
         return sum(
             word * 2 ** (6 * (self.num_words - i - 1))
@@ -91,7 +92,7 @@ class ConstantNumericValue(NumericValue):
 
         return words_reversed[::-1]
 
-    def as_word_array(self, asm: 'Assembler') -> typ.Optional[typ.List[int]]:
+    def as_word_array(self, asm: 'Assembler') -> typ.List[int]:
         return self.int_to_words(self.value, self.num_words)
 
 
@@ -100,9 +101,11 @@ class LabelValue(NumericValue):
         self.name = name
         self.num_words = 3
 
-    def as_word_array(self, asm: 'Assembler') -> typ.Optional[typ.List[int]]:
+    def as_word_array(self, asm: 'Assembler') -> typ.List[int]:
         if self.name not in asm.label_values:
-            raise ValueNotReadyException(f"Can't find label {self.name}")
+            raise ValueNotReadyException(
+                f"Can't find label {self.name}", self.backtrace
+            )
 
         return ConstantNumericValue.int_to_words(
             asm.label_values[self.name], 3
@@ -116,12 +119,10 @@ class MakeResultValue(NumericValue):
             constituent.num_words for constituent in constituents
         )
 
-    def as_word_array(self, asm: 'Assembler') -> typ.Optional[typ.List[int]]:
+    def as_word_array(self, asm: 'Assembler') -> typ.List[int]:
         word_array = []
         for constituent in self.constituents:
             constituent_result = constituent.as_word_array(asm)
-            if constituent_result is None:
-                return None
             word_array.extend(constituent_result)
         return word_array
 
@@ -129,12 +130,10 @@ class MakeResultValue(NumericValue):
 class CodeValue(Value):
     def __init__(
         self, lines: typ.List[str], line_mapping: typ.List[int], origin: str,
-        traceback: 'ProgramTraceback'
     ):
         self.lines = lines
         self.line_mapping = line_mapping
         self.origin = origin
-        self.traceback = traceback
 
         assert len(self.lines) == len(self.line_mapping)
 
@@ -151,7 +150,8 @@ class InstructionMacro:
 
     def execute(
         self, args: typ.List['Value'],
-        assembler: 'Assembler', executing_context: 'Context'
+        assembler: 'Assembler', executing_context: 'Context',
+        traceback: 'ProgramTraceback'
     ) -> None:
         if len(self.arg_names) != len(args):
             raise ParseError(
@@ -164,7 +164,7 @@ class InstructionMacro:
 
         parser = Parser(
             assembler, self.code_block.lines, self.code_block.line_mapping,
-            self.code_block.origin, self.code_block.traceback
+            self.code_block.origin, traceback
         )
         parser.parse_program(new_context)
 
@@ -209,6 +209,15 @@ class Context:
 
         self.instruction_macros[name] = macro
 
+    def set_variable(self, var_name: str, var_value: Value) -> None:
+        if var_name in self.variables:
+            self.variables[var_name] = var_value
+        else:
+            if self.parent is not None:
+                self.parent.set_variable(var_name, var_value)
+            else:
+                raise ParseError(f"Can't set {var_name} variable")
+
 
 class ProgramTraceback:
     def __init__(
@@ -241,8 +250,12 @@ class Assembler:
         ] = []
         self.label_values: typ.Dict[str, int] = {}
         self.ip = 0
+        self.primary_filename: typ.Optional[str] = None
 
     def assemble_file(self, file_name: str) -> None:
+        assert self.primary_filename is None
+        self.primary_filename = os.path.abspath(file_name)
+
         with open(file_name) as file:
             source = file.read()
         self.assemble_source(source, f'"{os.path.abspath(file_name)}"')
@@ -284,20 +297,28 @@ class Assembler:
 
             self.data_values.append((start_ip, arg, traceback))
 
-    def link_data(self) -> typ.List[typ.Optional[int]]:
-        data: typ.List[typ.Optional[int]] = [None] * (2 ** 18)
+    def link_data(self) -> compiled.CompiledProgram:
+        WordListType = typ.List[typ.Optional[compiled.CompiledWord]]
+        data: WordListType = [None] * (2 ** 18)
 
         for value_start, numeric_value, traceback in self.data_values:
-            word_array = numeric_value.as_word_array(self)
-
-            if word_array is None:
-                traceback.trigger_error("Failed to evaluate data")
+            try:
+                word_array = numeric_value.as_word_array(self)
+            except ValueNotReadyException as err:
+                if err.traceback:
+                    err.traceback.trigger_error(err.msg)
+                else:
+                    traceback.trigger_error(err.msg)
 
             for word_num, word in enumerate(word_array):
                 assert data[word_num + value_start] is None
-                data[word_num + value_start] = word
+                data[word_num + value_start] = compiled.CompiledWord(
+                    word, traceback, True, True, True
+                )
 
-        return data
+        return compiled.CompiledProgram(
+            data, self.label_values
+        )
 
     def run_define_command(
         self, args: typ.List[Value], ctx: Context
@@ -342,6 +363,61 @@ class Assembler:
         else:
             raise ParseError('Unknown define type')
 
+    def run_set_command(self, args: typ.List[Value], ctx: Context) -> None:
+        if len(args) < 1 or not isinstance(args[0], IdentifierValue):
+            raise ParseError("Need sub-command for SET command")
+
+        set_type = args[0].contents.upper()
+
+        if set_type == 'VARIABLE_VAL':
+            if len(args) != 3:
+                raise ParseError('Need 3 args for variable val set')
+
+            if not isinstance(args[1], IdentifierValue):
+                raise ParseError("Need variable name")
+            var_name = args[1].contents
+
+            ctx.set_variable(var_name, args[2])
+
+    def run_include_command(
+        self, args: typ.List[Value], ctx: Context,
+        traceback: ProgramTraceback
+    ) -> None:
+        if len(args) != 1 or not isinstance(args[0], IdentifierValue):
+            raise ParseError("Need identifier as first arg to include")
+
+        filename = args[0].contents + '.xasm'
+
+        def normalise(directory: str) -> str:
+            return os.path.dirname(os.path.realpath(directory))
+
+        lookup_dirs = []
+        if self.primary_filename is not None:
+            lookup_dirs.append(normalise(self.primary_filename))
+        lookup_dirs.append(normalise(__file__))
+        lookup_dirs.append(normalise(os.curdir))
+
+        for lookup_dir in lookup_dirs:
+            potential_path = os.path.join(lookup_dir, filename)
+            if os.path.exists(potential_path):
+                file_path = potential_path
+                break
+        else:
+            raise ParseError(f"Can't find include {filename}")
+
+        with open(file_path) as file:
+            source = file.read()
+
+        sanitised = source.replace('\r', '')
+        lines = sanitised.split('\n')
+
+        line_mapping = [
+            line_index + 1 for line_index in range(len(lines))
+        ]
+        parser = Parser(self, lines, line_mapping, filename, traceback)
+
+        parser.parse_program(ctx)
+
     def process_command(
         self, command_name: str,
         arguments: typ.List[Value],
@@ -353,17 +429,23 @@ class Assembler:
             self.run_data_command(arguments, traceback)
         elif command_name == 'DEFINE':
             self.run_define_command(arguments, context)
+        elif command_name == 'SET':
+            self.run_set_command(arguments, context)
+        elif command_name == 'ASSERT':
+            raise ParseError('TODO: Assert')
+        elif command_name == 'INCLUDE':
+            self.run_include_command(arguments, context, traceback)
         elif macro_command := context.find_instruction_macro(command_name):
-            macro_command.execute(arguments, self, context)
+            macro_command.execute(arguments, self, context, traceback)
         else:
-            raise ParseError("Unknown command")
+            raise ParseError(f'Unknown command {command_name}')
 
 
 class Parser:
     IDENTIFIER_REGEX = r'[a-zA-Z_][a-zA-Z_0-9=]*'
     VARIABLE_USEAGE_REGEX = r'\$([a-zA-Z_][a-zA-Z_0-9=]*)'
     NUMERIC_REGEX = r'(0b[01]+)|(0x[a-fA-F0-9]+)|([1-9][0-9]*)|0'
-    LABEL_REGEX = r':(.?)([a-zA-Z_][a-zA-Z_0-9=.]*)'
+    LABEL_REGEX = r':(\.?)([a-zA-Z_][a-zA-Z_0-9=.]*)'
 
     def __init__(
         self, assembler: Assembler, virtual_lines: typ.List[str],
@@ -425,7 +507,9 @@ class Parser:
     def parse_function_call(self, name: str, context: Context) -> Value:
         args = []
         while True:
-            args.append(self.parse_arg(context))
+            arg = self.parse_arg(context)
+            arg.backtrace = self.current_traceback()
+            args.append(arg)
 
             if self.accept(r'\)'):
                 break
@@ -537,7 +621,6 @@ class Parser:
 
             return CodeValue(
                 lines, line_mapping, self.source_origin,
-                self.current_traceback()
             )
 
         elif m := self.accept(self.VARIABLE_USEAGE_REGEX):
@@ -548,6 +631,11 @@ class Parser:
                 return var_value
             else:
                 raise ParseError(f"Can't find variable {variable_name}")
+
+        elif m := self.accept(r'\$\$'):
+            return ConstantNumericValue(
+                self.assembler.ip, 3
+            )
 
         else:
             raise ParseError("Expected argument")
@@ -589,7 +677,7 @@ class Parser:
             ctx.last_global_label = name.split('.', 2)[0]
             label = name
 
-        assembler.declare_label(label)
+        self.assembler.declare_label(label)
 
         return True
 
@@ -600,11 +688,13 @@ class Parser:
         if self in error.registered_parsers:
             return
 
-        offending_line_contents = self.lines[self.line_num][:-1]
+        line_num = self.last_command_line_num if full_line else self.line_num
+
+        offending_line_contents = self.lines[line_num][:-1]
         traceback = []
         traceback.append(
             f"At {self.source_origin} on line "
-            f"{self.line_mapping[self.line_num]}:"
+            f"{self.line_mapping[line_num]}:"
         )
         traceback.append(f"    {offending_line_contents}")
         if full_line:
@@ -631,7 +721,7 @@ class Parser:
             raise
 
 
-if __name__ == '__main__':
+def main() -> None:
     if len(sys.argv) != 2:
         print("Need filename as argument")
         sys.exit(1)
@@ -641,10 +731,14 @@ if __name__ == '__main__':
     assembler = Assembler()
     try:
         assembler.assemble_file(filename)
-        data = assembler.link_data()
+        program = assembler.link_data()
         print(" addr | data")
-        for i, word in enumerate(data):
+        for i, word in enumerate(program.data):
             if word is not None:
-                print(f" {i:4} | {word:4}")
+                print(f" {i:4} | {word.value:4}")
     except AssemblyError as err:
         err.print_info()
+
+
+if __name__ == '__main__':
+    main()

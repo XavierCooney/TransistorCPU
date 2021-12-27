@@ -1,0 +1,12 @@
+INCLUDE common
+
+:start
+LOAD_A :constants.zero
+OUTPUT_A 1
+INC_A
+JUMP_ANZ :start
+HALT_LOOP
+
+:constants
+:.zero
+DATA 0
