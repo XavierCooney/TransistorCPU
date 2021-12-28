@@ -64,6 +64,7 @@ class Emulator:
         assert compiled_word is not None
         assert compiled_word.for_writing
 
+        # print(f"Writing, {address}, {value}")
         self.memory[address] = value
 
     def read_ram_from_pc(self, offset: int) -> int:
@@ -81,9 +82,18 @@ class Emulator:
         assert self.program_counter % 4 == 0
         pass
 
+    def trigger_error_at_current(self, msg: str) -> None:
+        word = self.compiled_program.data[self.program_counter]
+        if word is None:
+            print(f'\n >>> Error at {self.program_counter}')
+            raise Exception(msg)
+        else:
+            word.traceback.trigger_error(msg)
+
     def step(self) -> None:
         # FETCH
         opcode = self.read_ram_from_pc(0)
+        did_jump = False
 
         if opcode & 0b100000:
             # Memory I/O
@@ -125,6 +135,7 @@ class Emulator:
                 assert low % 4 == 0
 
                 self.program_counter = self.words_to_int([hi, mid, low])
+                did_jump = True
         elif opcode & 0b000010:
             # Output
             assert opcode in (0b000010,)
@@ -145,9 +156,10 @@ class Emulator:
             assert opcode in (0b000001,)
             self.a_register = self.input_register
         else:
-            assert False
+            self.trigger_error_at_current(f'Unknown opcode: 0b{opcode:06b}')
 
-        self.program_counter = (self.program_counter + 4) % (2 ** 10 * 4)
+        if not did_jump:
+            self.program_counter = (self.program_counter + 4) % (2 ** 10 * 4)
 
     def is_self_jump(self) -> bool:
         # check if the next instruction is a jump to itself, indicating a halt

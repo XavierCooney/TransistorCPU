@@ -58,6 +58,8 @@ class IdentifierValue(Value):
 
 
 class NumericValue(Value):
+    num_words: int
+
     @abc.abstractmethod
     def as_word_array(self, asm: 'Assembler') -> typ.List[int]:
         pass
@@ -70,7 +72,8 @@ class NumericValue(Value):
             for i, word in enumerate(word_array)
         )
 
-    num_words: int
+    def place_value(self, location: int, assembler: 'Assembler') -> None:
+        pass
 
 
 class ConstantNumericValue(NumericValue):
@@ -88,9 +91,12 @@ class ConstantNumericValue(NumericValue):
 
         words_reversed.extend([0] * (num_words - len(words_reversed)))
         if len(words_reversed) != num_words:
-            raise ParseError('Number too big')
+            raise ParseError(f'Number too big ({value}, {num_words})')
 
         return words_reversed[::-1]
+
+    def __repr__(self) -> str:
+        return f'ConstantNumericValue({self.value}_{self.num_words})'
 
     def as_word_array(self, asm: 'Assembler') -> typ.List[int]:
         return self.int_to_words(self.value, self.num_words)
@@ -112,6 +118,23 @@ class LabelValue(NumericValue):
         )
 
 
+class InlineLabelDeclarationValue(NumericValue):
+    def __init__(self, name: str, initial: NumericValue):
+        self.num_words = initial.num_words
+        self.initial_value = initial
+        self.name = name
+
+    def as_word_array(self, asm: 'Assembler') -> typ.List[int]:
+        return self.initial_value.as_word_array(asm)
+
+    def place_value(self, location: int, assembler: 'Assembler') -> None:
+        # TODO: The label will not be declared if this isn't called (e.g.
+        #       because of some calculation based done off of it),
+        #       which isn't the worse because then there'll just be a
+        #       slightly vague error, but there should be a better message
+        assembler.declare_label(self.name, location)
+
+
 class MakeResultValue(NumericValue):
     def __init__(self, constituents: typ.List[NumericValue]):
         self.constituents = constituents
@@ -125,6 +148,24 @@ class MakeResultValue(NumericValue):
             constituent_result = constituent.as_word_array(asm)
             word_array.extend(constituent_result)
         return word_array
+
+    def place_value(self, location: int, assembler: 'Assembler') -> None:
+        offset = 0
+        for consitituent in self.constituents:
+            consitituent.place_value(location + offset, assembler)
+            offset += consitituent.num_words
+
+
+class ExtractedValue(NumericValue):
+    num_words = 1
+
+    def __init__(self, value: NumericValue, word_num: int):
+        self.value = value
+        self.word_num = word_num
+        assert self.word_num < self.value.num_words
+
+    def as_word_array(self, asm: 'Assembler') -> typ.List[int]:
+        return [self.value.as_word_array(asm)[self.word_num]]
 
 
 class CodeValue(Value):
@@ -193,7 +234,7 @@ class Context:
         if name in self.variables:
             return self.variables[name]
         if self.parent is not None:
-            return self.find_variable_value(name)
+            return self.parent.find_variable_value(name)
         return None
 
     def define_variable(self, var_name: str, var_value: Value) -> None:
@@ -271,10 +312,12 @@ class Assembler:
 
         parser.parse_program(Context(None))
 
-    def declare_label(self, label: str) -> None:
+    def declare_label(
+        self, label: str, location: typ.Optional[int] = None
+    ) -> None:
         if label in self.label_values:
             raise ParseError(f'Redeclaration of label {label}!')
-        self.label_values[label] = self.ip
+        self.label_values[label] = self.ip if location is None else location
 
     def run_data_command(
         self, arguments: typ.List[Value], traceback: ProgramTraceback
@@ -295,9 +338,10 @@ class Assembler:
                     self.ip += 1
                     assert self.ip < 2**16
 
+            arg.place_value(start_ip, self)
             self.data_values.append((start_ip, arg, traceback))
 
-    def link_data(self) -> compiled.CompiledProgram:
+    def link_data(self) -> 'compiled.CompiledProgram':
         WordListType = typ.List[typ.Optional[compiled.CompiledWord]]
         data: WordListType = [None] * (2 ** 18)
 
@@ -378,6 +422,8 @@ class Assembler:
             var_name = args[1].contents
 
             ctx.set_variable(var_name, args[2])
+        else:
+            raise ParseError(f'Unknown set command {set_type}')
 
     def run_include_command(
         self, args: typ.List[Value], ctx: Context,
@@ -418,6 +464,74 @@ class Assembler:
 
         parser.parse_program(ctx)
 
+    def run_loop_command(
+        self, args: typ.List[Value], parent_ctx: Context,
+        traceback: ProgramTraceback
+    ) -> None:
+        if len(args) != 3:
+            raise ParseError('Need three args for loop')
+
+        condition_name_arg = args[0]
+        if not isinstance(condition_name_arg, IdentifierValue):
+            raise ParseError('Need loop condition variable')
+        condition_var_name = condition_name_arg.contents
+
+        condition_code = args[1]
+        if not isinstance(condition_code, CodeValue):
+            raise ParseError('Need condition code')
+
+        body_code = args[2]
+        if not isinstance(body_code, CodeValue):
+            raise ParseError('Need loop body')
+
+        context = Context(parent_ctx)
+
+        context.define_variable(
+            condition_var_name, IdentifierValue('NOT_SET')
+        )
+        while True:
+            context.set_variable(
+                condition_var_name, IdentifierValue('NOT_SET')
+            )
+            condition_parser = Parser(
+                self, condition_code.lines, condition_code.line_mapping,
+                condition_code.origin, traceback
+            )
+            condition_parser.parse_program(context)
+
+            condition_value = context.find_variable_value(condition_var_name)
+            if condition_value is None:
+                raise ParseError("Condition variable not defined")
+
+            should_break: bool
+            if isinstance(condition_value, IdentifierValue):
+                contents = condition_value.contents.upper()
+                if contents == 'FALSE':
+                    should_break = True
+                elif contents == 'TRUE':
+                    should_break = False
+                else:
+                    raise ParseError(f'Unknown flag {contents}')
+            elif isinstance(condition_value, NumericValue):
+                try:
+                    should_break = all(
+                        word == 0
+                        for word in condition_value.as_word_array(self)
+                    )
+                except ValueNotReadyException:
+                    raise ParseError('Condition value not ready')
+            else:
+                raise ParseError(f"Condition can't be {type(condition_value)}")
+
+            if should_break:
+                break
+
+            body_parser = Parser(
+                self, body_code.lines, body_code.line_mapping,
+                body_code.origin, traceback
+            )
+            body_parser.parse_program(context)
+
     def process_command(
         self, command_name: str,
         arguments: typ.List[Value],
@@ -435,6 +549,10 @@ class Assembler:
             raise ParseError('TODO: Assert')
         elif command_name == 'INCLUDE':
             self.run_include_command(arguments, context, traceback)
+        elif command_name == 'LOOP':
+            self.run_loop_command(arguments, context, traceback)
+        elif command_name == 'DEBUG_OUT':
+            print('DEBUG OUT', arguments)
         elif macro_command := context.find_instruction_macro(command_name):
             macro_command.execute(arguments, self, context, traceback)
         else:
@@ -445,7 +563,8 @@ class Parser:
     IDENTIFIER_REGEX = r'[a-zA-Z_][a-zA-Z_0-9=]*'
     VARIABLE_USEAGE_REGEX = r'\$([a-zA-Z_][a-zA-Z_0-9=]*)'
     NUMERIC_REGEX = r'(0b[01]+)|(0x[a-fA-F0-9]+)|([1-9][0-9]*)|0'
-    LABEL_REGEX = r':(\.?)([a-zA-Z_][a-zA-Z_0-9=.]*)'
+    MAIN_LABEL_REGEX = r'(\.|:)([a-zA-Z_][a-zA-Z_0-9=.]*)'
+    DECLARE_INLINE_LABEL_REGEX = r'%(\.|:)([a-zA-Z_][a-zA-Z_0-9=.]*)'
 
     def __init__(
         self, assembler: Assembler, virtual_lines: typ.List[str],
@@ -504,6 +623,36 @@ class Parser:
         else:
             raise ParseError(f'Expected `{regex}`')
 
+    def get_numeric_values_from_args(
+        self, num: int, args: typ.List[Value]
+    ) -> typ.Tuple[int, typ.List[int]]:
+        if len(args) != num:
+            raise ParseError(f'Expected {num} arguments, got {len(args)}')
+
+        ints = []
+        largest_word_size = 0
+        for arg in args:
+            if not isinstance(arg, NumericValue):
+                if arg.backtrace:
+                    arg.backtrace.trigger_error('Expected numeric value')
+                else:
+                    raise ParseError('Expected numeric value')
+
+            try:
+                largest_word_size = max(
+                    largest_word_size, arg.num_words
+                )
+                integer_value = arg.as_integer(self.assembler)
+            except ValueNotReadyException:
+                if arg.backtrace:
+                    arg.backtrace.trigger_error('Value not ready')
+                else:
+                    raise ParseError('Value not ready')
+
+            ints.append(integer_value)
+
+        return largest_word_size, ints
+
     def parse_function_call(self, name: str, context: Context) -> Value:
         args = []
         while True:
@@ -540,6 +689,64 @@ class Parser:
                 )
 
             return result
+        elif name == 'is_lt':
+            num_words, values = self.get_numeric_values_from_args(2, args)
+            a, b = values
+
+            return ConstantNumericValue(1 if a < b else 0, 1)
+        elif name == 'is_pow_of_two':
+            num_words, values = self.get_numeric_values_from_args(1, args)
+            a, = values
+            is_pow_of_2 = a > 1 and a & (a - 1) == 0
+
+            return ConstantNumericValue(1 if is_pow_of_2 else 0, 1)
+        elif name == 'is_eq':
+            if len(args) != 2:
+                raise ParseError('Expected two args')
+
+            if isinstance(args[0], NumericValue):
+                num_words, values = self.get_numeric_values_from_args(2, args)
+                a, b = values
+                # ignore num_words
+                return ConstantNumericValue(1 if a == b else 0, 1)
+            elif isinstance(args[0], IdentifierValue):
+                if not isinstance(args[1], IdentifierValue):
+                    raise ParseError('Second arg not idenfitier in is_eq')
+
+                return ConstantNumericValue(
+                    1 if args[0].contents == args[1].contents else 0, 1
+                )
+            else:
+                raise ParseError(f"Canm't check is_eq for {type(args[0])}")
+        elif name == 'not':
+            num_words, values = self.get_numeric_values_from_args(1, args)
+            a, = values
+
+            return ConstantNumericValue(1 if a == 0 else 0, 1)
+        elif name == 'plus':
+            num_words, values = self.get_numeric_values_from_args(2, args)
+            a, b = values
+
+            return ConstantNumericValue(a + b, num_words)
+        elif name == 'hi':
+            if len(args) != 1:
+                raise ParseError('Need 1 arg for hi')
+            if not isinstance(args[0], NumericValue):
+                raise ParseError('Expected numeric value for hi command')
+
+            num_words = args[0].num_words
+            if num_words <= 1:
+                raise ParseError('need more than 1 word for hi()')
+            desired_word_num = 0
+
+            return ExtractedValue(args[0], desired_word_num)
+        elif name == 'mod':
+            num_words, values = self.get_numeric_values_from_args(2, args)
+            a, b = values
+            if b == 0:
+                raise ParseError('mod by 0')
+
+            return ConstantNumericValue(a % b, num_words)
         else:
             raise ParseError(f"Unknown method {name}")
 
@@ -571,8 +778,8 @@ class Parser:
             self.expect("")
             return ConstantNumericValue(value, word_size)
 
-        elif m := self.accept(self.LABEL_REGEX):
-            is_local = bool(m.group(1))
+        elif m := self.accept(self.MAIN_LABEL_REGEX):
+            is_local = m.group(1) == '.'
             name = m.group(2)
 
             if is_local:
@@ -581,6 +788,30 @@ class Parser:
                 label = name
 
             return LabelValue(label)
+
+        elif m := self.accept(self.DECLARE_INLINE_LABEL_REGEX):
+            is_local = m.group(1) == '.'
+            name = m.group(2)
+
+            if is_local:
+                label = f'{context.last_global_label}.{name}'
+            else:
+                context.last_global_label = name.split('.', 2)[0]
+                label = name
+
+            if not is_local:
+                # seems weird to declare a global inline label
+                raise ParseError("No global inline labels")
+
+            initial_value: NumericValue = ConstantNumericValue(0, 1)
+
+            if self.accept(r'='):
+                parsed_value = self.parse_arg(context)
+                if not isinstance(parsed_value, NumericValue):
+                    raise ParseError("Expected numeric value for initial val")
+                initial_value = parsed_value
+
+            return InlineLabelDeclarationValue(label, initial_value)
 
         elif m := self.accept('{'):
             self.accept('\n')
@@ -663,12 +894,12 @@ class Parser:
             raise
 
     def accept_label_declaration(self, ctx: Context) -> bool:
-        match = self.accept(self.LABEL_REGEX)
+        match = self.accept(self.MAIN_LABEL_REGEX)
 
         if not match:
             return False
 
-        is_local = bool(match.group(1))
+        is_local = match.group(1) == '.'
         name = match.group(2)
 
         if is_local:

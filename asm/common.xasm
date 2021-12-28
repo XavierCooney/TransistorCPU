@@ -21,7 +21,7 @@ DEFINE COMMAND, OUTPUT_A, output_type, {
 DEFINE COMMAND, JUMP, address, {
     INSTRUCTION_DATA make(4, 0b001100, $address)
 }
-DEFINE COMMAND, JUMP_ANZ, address, {
+DEFINE COMMAND, JUMP_NZ, address, {
     INSTRUCTION_DATA make(4, 0b001010, $address)
 }
 DEFINE COMMAND, JUMP_INPUT_READY, address, {
@@ -30,4 +30,30 @@ DEFINE COMMAND, JUMP_INPUT_READY, address, {
 
 DEFINE COMMAND, HALT_LOOP, {
     JUMP $$
+}
+
+DEFINE COMMAND, EXECUTE, code_value, {
+    DEFINE COMMAND, RUN_CODE_VALUE, $code_value
+    RUN_CODE_VALUE
+}
+
+DEFINE COMMAND, TIMES, total, code_block, {
+    DEFINE VARIABLE, counter, 0_8
+    LOOP continue, {
+        SET VARIABLE_VAL, continue, is_lt($counter, $total)
+    }, {
+        EXECUTE $code_block
+        SET VARIABLE_VAL, counter, plus($counter, 1)
+    }
+}
+
+DEFINE COMMAND, ALIGN_TO, mask, {
+    REM ASSERT is_pow_of_two(mask)
+
+    LOOP continue, {
+        SET VARIABLE_VAL, continue, not(is_eq(0, mod($$, $mask)))
+        REM DEBUG_OUT $$, $continue
+    }, {
+        DATA 0
+    }
 }

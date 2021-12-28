@@ -1,0 +1,67 @@
+INCLUDE common
+
+JUMP :initialise_addition_table.start
+
+ALIGN_TO 4
+:initialise_addition_table.start
+.main_loop
+    LOAD_A .val_sum
+    STORE_A make(3, hi(:addition_table), %.val_x, %.val_y)
+    INC_A
+    STORE_A .val_sum
+
+    LOAD_A .val_y
+    INC_A
+    STORE_A .val_y
+    JUMP_NZ .main_loop
+
+    REM val_y = 0
+    LOAD_A .val_sum
+    INC_A
+    STORE_A .val_sum
+    LOAD_A .val_x
+    INC_A
+    STORE_A .val_x
+    JUMP_NZ .main_loop
+
+    REM val_x = 0
+    REM done!
+    JUMP :test_addition
+
+
+DEFINE COMMAND, BINARY_ADD, x, y, {
+    LOAD_A make(3, hi(:addition_table), $x, $y)
+}
+DEFINE COMMAND, UNARY_ADD, x, {
+    UNARY_OP make(2, hi(:addition_table), $x)
+}
+DEFINE COMMAND, LOAD_CONSTANT, x, {
+    BINARY_ADD 0, $x
+}
+
+ALIGN_TO 4
+:test_addition
+    BINARY_ADD 4, 7
+    OUTPUT_A 1
+    REM 11
+
+    BINARY_ADD 50, 49
+    OUTPUT_A 1
+    REM 35
+
+    LOAD_CONSTANT 42
+    UNARY_ADD 12
+    OUTPUT_A 1
+    REM 56
+
+    HALT_LOOP
+
+
+:initialise_addition_table.data
+.val_sum
+DATA 0
+
+
+ALIGN_TO 4096_3
+:addition_table
+TIMES 4096_3, { DATA 0 }

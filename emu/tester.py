@@ -78,12 +78,19 @@ class NoOpTest(SimpleTest):
     expected_output: ExpectedOutput = []
 
 
+class Addition1Test(SimpleTest):
+    xasm_file = 'addition_1'
+    test_name = 'addition 1'
+    expected_output: ExpectedOutput = [11, 35, 54]
+
+
 all_tests = [
     Count1Test(),
-    NoOpTest()
+    NoOpTest(),
+    Addition1Test()
 ]
 
-VERBOSE = False
+VERBOSE = True
 
 if __name__ == '__main__':
     for test in all_tests:
