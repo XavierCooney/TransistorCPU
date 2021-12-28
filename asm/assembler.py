@@ -532,6 +532,36 @@ class Assembler:
             )
             body_parser.parse_program(context)
 
+    def run_assert_command(self, args: typ.List[Value]) -> None:
+        if len(args) != 1:
+            raise ParseError('Expected 1 arg to ASSERT')
+
+        if not isinstance(args[0], NumericValue):
+            raise ParseError('Expected numeric argument to ASSERT')
+
+        try:
+            condition = args[0].as_integer(self)
+        except ValueNotReadyException:
+            raise ParseError('Value to ASSERT not ready')
+
+        if condition == 0:
+            raise ParseError('Assertion failure')
+
+    def run_skip_command(self, args: typ.List[Value]) -> None:
+        if len(args) != 1:
+            raise ParseError('Expected 1 arg to SKIP_DATA')
+
+        if not isinstance(args[0], NumericValue):
+            raise ParseError('Expected numeric argument to SKIP_DATA')
+
+        try:
+            as_int = args[0].as_integer(self)
+        except ValueNotReadyException:
+            raise ParseError('Value to SKIP_DATA not ready')
+
+        self.ip += as_int
+        assert self.ip < 2 ** 18
+
     def process_command(
         self, command_name: str,
         arguments: typ.List[Value],
@@ -541,12 +571,14 @@ class Assembler:
 
         if command_name == 'DATA':
             self.run_data_command(arguments, traceback)
+        elif command_name == 'SKIP_DATA':
+            self.run_skip_command(arguments)
         elif command_name == 'DEFINE':
             self.run_define_command(arguments, context)
         elif command_name == 'SET':
             self.run_set_command(arguments, context)
         elif command_name == 'ASSERT':
-            raise ParseError('TODO: Assert')
+            self.run_assert_command(arguments)
         elif command_name == 'INCLUDE':
             self.run_include_command(arguments, context, traceback)
         elif command_name == 'LOOP':
@@ -726,8 +758,16 @@ class Parser:
         elif name == 'plus':
             num_words, values = self.get_numeric_values_from_args(2, args)
             a, b = values
-
+            # overflow will be catched in word array conversion
             return ConstantNumericValue(a + b, num_words)
+        elif name == 'minus':
+            num_words, values = self.get_numeric_values_from_args(2, args)
+            a, b = values
+
+            if b > a:
+                raise ParseError('Minus giving negative value')
+
+            return ConstantNumericValue(a - b, num_words)
         elif name == 'hi':
             if len(args) != 1:
                 raise ParseError('Need 1 arg for hi')

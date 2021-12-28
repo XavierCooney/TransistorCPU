@@ -48,12 +48,7 @@ DEFINE COMMAND, TIMES, total, code_block, {
 }
 
 DEFINE COMMAND, ALIGN_TO, mask, {
-    REM ASSERT is_pow_of_two(mask)
+    ASSERT is_pow_of_two($mask)
 
-    LOOP continue, {
-        SET VARIABLE_VAL, continue, not(is_eq(0, mod($$, $mask)))
-        REM DEBUG_OUT $$, $continue
-    }, {
-        DATA 0
-    }
+    SKIP_DATA minus($mask, mod($$, $mask))
 }
