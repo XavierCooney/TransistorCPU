@@ -1,3 +1,4 @@
+INCLUDE common_pre
 INCLUDE common
 
     LOAD_A :constants.zero

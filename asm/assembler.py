@@ -56,6 +56,9 @@ class IdentifierValue(Value):
     def __init__(self, contents: str):
         self.contents = contents
 
+    def __repr__(self):
+        return f'IdentifierValue({repr(self.contents)})'
+
 
 class NumericValue(Value):
     num_words: int
@@ -441,6 +444,7 @@ class Assembler:
         if self.primary_filename is not None:
             lookup_dirs.append(normalise(self.primary_filename))
         lookup_dirs.append(normalise(__file__))
+        lookup_dirs.append(os.path.join(normalise(__file__), 'lib'))
         lookup_dirs.append(normalise(os.curdir))
 
         for lookup_dir in lookup_dirs:
@@ -532,6 +536,60 @@ class Assembler:
             )
             body_parser.parse_program(context)
 
+    def run_if_command(
+        self, args: typ.List[Value], parent_ctx: Context,
+        traceback: ProgramTraceback
+    ) -> None:
+        if len(args) != 2:
+            # TODO: else
+            raise ParseError('Need two args for IF')
+
+        condition_value = args[0]
+        if not isinstance(condition_value, NumericValue):
+            raise ParseError('Condition must be numeric')
+
+        try:
+            condition = condition_value.as_integer(self) != 0
+        except ValueNotReadyException:
+            raise ParseError('IF condition not ready')
+
+        if not condition:
+            return
+
+        body = args[1]
+        if not isinstance(body, CodeValue):
+            raise ParseError('Need code block for IF')
+
+        context = Context(parent_ctx)
+
+        body_parser = Parser(
+            self, body.lines, body.line_mapping,
+            body.origin, traceback
+        )
+        body_parser.parse_program(context)
+
+    def run_up_command(
+        self, args: typ.List[Value], parent_ctx: Context,
+        traceback: ProgramTraceback
+    ) -> None:
+        if len(args) != 1:
+            # TODO: else
+            raise ParseError('Need one args for UP')
+
+        body = args[0]
+        if not isinstance(body, CodeValue):
+            raise ParseError('Need code block for UP')
+
+        context = parent_ctx.parent
+        if context is None:
+            raise ParseError('UP in top level context')
+
+        body_parser = Parser(
+            self, body.lines, body.line_mapping,
+            body.origin, traceback
+        )
+        body_parser.parse_program(context)
+
     def run_assert_command(self, args: typ.List[Value]) -> None:
         if len(args) != 1:
             raise ParseError('Expected 1 arg to ASSERT')
@@ -583,6 +641,10 @@ class Assembler:
             self.run_include_command(arguments, context, traceback)
         elif command_name == 'LOOP':
             self.run_loop_command(arguments, context, traceback)
+        elif command_name == 'IF':
+            self.run_if_command(arguments, context, traceback)
+        elif command_name == 'UP':
+            self.run_up_command(arguments, context, traceback)
         elif command_name == 'DEBUG_OUT':
             print('DEBUG OUT', arguments)
         elif macro_command := context.find_instruction_macro(command_name):
@@ -768,6 +830,19 @@ class Parser:
                 raise ParseError('Minus giving negative value')
 
             return ConstantNumericValue(a - b, num_words)
+        elif name == 'concant_ident':
+            if len(args) < 2:
+                raise ParseError('Need at least two identifiers to concat')
+
+            segments = []
+            for arg in args:
+                if not isinstance(arg, IdentifierValue):
+                    raise ParseError(
+                        f'Need identifier to concat, not {type(arg)}'
+                    )
+                segments.append(arg.contents)
+
+            return IdentifierValue(''.join(segments))
         elif name == 'hi':
             if len(args) != 1:
                 raise ParseError('Need 1 arg for hi')

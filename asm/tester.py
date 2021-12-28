@@ -48,6 +48,7 @@ DO_SOMETHING 8, 9
 """.strip(), [3, 8, 9])
 
 add_simple_test("include", """
+INCLUDE common_pre
 INCLUDE common
 
 INC_A

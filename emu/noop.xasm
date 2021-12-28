@@ -1,3 +1,4 @@
+INCLUDE common_pre
 INCLUDE common
 
 HALT_LOOP

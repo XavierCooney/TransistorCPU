@@ -1,3 +1,5 @@
+ASSERT $com_pre_is_included
+
 DEFINE COMMAND, INSTRUCTION_DATA, data, {
     REM TODO: check alignment, wraparound
     DATA make(4, $data)
@@ -52,3 +54,7 @@ DEFINE COMMAND, ALIGN_TO, mask, {
 
     SKIP_DATA minus($mask, mod($$, $mask))
 }
+
+IF $com_needed_addition, { UP {
+    INCLUDE addition
+} }

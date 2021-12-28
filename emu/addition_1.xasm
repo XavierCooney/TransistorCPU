@@ -1,3 +1,4 @@
+INCLUDE common_pre
 INCLUDE common
 
 JUMP :initialise_addition_table.start

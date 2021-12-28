@@ -1,0 +1,8 @@
+DEFINE VARIABLE, com_pre_is_included, 1
+
+DEFINE VARIABLE, com_needed_addition, 0
+
+
+DEFINE COMMAND, NEED, name, {
+    SET VARIABLE_VAL, concant_ident(com_needed_, $name), 1
+}
