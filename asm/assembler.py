@@ -268,7 +268,8 @@ class Context:
 class ProgramTraceback:
     def __init__(
         self, previous: typ.Optional['ProgramTraceback'], lines: typ.List[str],
-        program_line: str, line_origin: str, is_internal: bool
+        program_line: str, line_origin: str, is_internal: bool,
+        last_global_label: str
     ) -> None:
         self.previous = previous
         self.lines = lines
@@ -276,6 +277,7 @@ class ProgramTraceback:
         self.program_line = program_line
         self.line_origin = line_origin
         self.is_internal = is_internal
+        self.last_global_label = last_global_label
 
     def print(self) -> None:
         if self.previous is not None:
@@ -576,7 +578,7 @@ class Assembler:
         if not isinstance(body, CodeValue):
             raise ParseError('Need code block for IF')
 
-        context = Context(parent_ctx)
+        context = Context(body.context)
 
         body_parser = Parser(
             self, body.lines, body.line_mapping,
@@ -596,11 +598,7 @@ class Assembler:
         if not isinstance(body, CodeValue):
             raise ParseError('Need code block for UP')
 
-        defining_context = body.context.parent
-        if defining_context is None:
-            raise ParseError('UP in top level context')
-
-        context = defining_context.parent
+        context = body.context.parent
         if context is None:
             raise ParseError('UP in top level context')
 
@@ -771,7 +769,7 @@ class Parser:
         args = []
         while True:
             arg = self.parse_arg(context)
-            arg.backtrace = self.current_traceback()
+            arg.backtrace = self.current_traceback(context)
             args.append(arg)
 
             if self.accept(r'\)'):
@@ -899,7 +897,7 @@ class Parser:
         else:
             raise ParseError(f"Unknown method {name}")
 
-    def current_traceback(self) -> ProgramTraceback:
+    def current_traceback(self, context: Context) -> ProgramTraceback:
         offending_line_contents = self.lines[self.last_command_line_num][:-1]
 
         line_number = self.line_mapping[self.last_command_line_num]
@@ -918,7 +916,7 @@ class Parser:
 
         return ProgramTraceback(
             self.parent_traceback, traceback, program_line, line_origin,
-            is_internal
+            is_internal, context.last_global_label
         )
 
     def parse_arg(self, context: Context) -> Value:
@@ -941,6 +939,8 @@ class Parser:
             name = m.group(2)
 
             if is_local:
+                if context.last_global_label == '':
+                    raise ParseError('Local without previous global label')
                 label = f'{context.last_global_label}.{name}'
             else:
                 label = name
@@ -952,6 +952,8 @@ class Parser:
             name = m.group(2)
 
             if is_local:
+                if context.last_global_label == '':
+                    raise ParseError('Local without previous global label')
                 label = f'{context.last_global_label}.{name}'
             else:
                 context.last_global_label = name.split('.', 2)[0]
@@ -1045,7 +1047,8 @@ class Parser:
 
         try:
             self.assembler.process_command(
-                command_name, arguments, ctx, self.current_traceback()
+                command_name, arguments,
+                ctx, self.current_traceback(ctx)
             )
         except ParseError as parse_err:
             self.handle_parse_error(parse_err, True)
@@ -1061,6 +1064,8 @@ class Parser:
         name = match.group(2)
 
         if is_local:
+            if ctx.last_global_label == '':
+                raise ParseError('Local without previous global label')
             label = f'{ctx.last_global_label}.{name}'
         else:
             ctx.last_global_label = name.split('.', 2)[0]

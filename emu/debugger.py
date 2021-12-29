@@ -23,8 +23,17 @@ class Debugger:
     def exit(self) -> typ.NoReturn:
         sys.exit(0)
 
-    def decode_address(self, address: str) -> typ.Optional[int]:
-        parts = address.replace(',', ' ').split(' ')
+    def current_global_label(self) -> typ.Optional[str]:
+        compiled = self.emu.compiled_program.data[self.emu.program_counter]
+
+        if compiled is not None:
+            traceback = compiled.traceback.get_deepst_non_internal()
+            return traceback.last_global_label
+        else:
+            return None
+
+    def decode_address(self, address_string: str) -> typ.Optional[int]:
+        parts = address_string.replace(',', ' ').split(' ')
         parts = [part for part in parts if part]
 
         if len(parts) == 3:
@@ -34,14 +43,40 @@ class Debugger:
             except (ValueError, AssertionError):
                 print("Can't decode multi word address")
                 return None
+
+        elif len(address_string) > 0 and address_string[0] == ':':
+            label_name = address_string[1:]
+            if label_name in self.emu.compiled_program.labels:
+                return self.emu.compiled_program.labels[label_name]
+            else:
+                print("Can't find global label", address_string[1:])
+                return None
+
+        elif len(address_string) > 0 and address_string[0] == '.':
+            local_suffix = address_string[1:]
+            global_prefix = self.current_global_label()
+
+            if global_prefix is None:
+                print('No global prefix to decode local label')
+                return None
+            else:
+                label_name = f'{global_prefix}.{local_suffix}'
+                if label_name in self.emu.compiled_program.labels:
+                    return self.emu.compiled_program.labels[label_name]
+                else:
+                    print("Can't find local label", label_name)
+                    return None
+
         elif len(parts) == 1:
             try:
-                return int(parts[0])
+                return int(address_string)
             except ValueError:
                 print("Can't decode integer address")
                 return None
+
         else:
             print("Don't know how to decode address")
+
         return None
 
     def memory_info(self, address: int) -> str:
@@ -65,7 +100,9 @@ class Debugger:
             print(f"No traceback at address {address}")
 
     def print_current_instruction(self, full_traceback: bool) -> None:
-        print(f'PC = {self.memory_info(self.emu.program_counter)}\t', end='')
+        program_counter = self.emu.program_counter
+
+        print(f'PC = {self.memory_info(program_counter)}\t', end='')
         print(f'A = {self.emu.a_register} ', end='')
         print()
         print(end='\t')
@@ -97,7 +134,15 @@ class Debugger:
         else:
             print('UNKNOWN INSTRUCTION')
 
-        self.traceback_word(self.emu.program_counter, full_traceback)
+        address_to_label_dict = self.emu.compiled_program.address_to_labels
+        # print(address_to_label_dict)
+        if program_counter in address_to_label_dict:
+            label_prefix = 'Labels   '
+            for label in address_to_label_dict[program_counter]:
+                print(label_prefix, ':' + label)
+                label_prefix = ' ' * len(label_prefix)
+
+        self.traceback_word(program_counter, full_traceback)
 
     def run_command(self, command: str, args: typ.List[str]) -> None:
         if command in ('s', 'step'):
