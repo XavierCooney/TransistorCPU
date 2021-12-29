@@ -56,7 +56,7 @@ class IdentifierValue(Value):
     def __init__(self, contents: str):
         self.contents = contents
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'IdentifierValue({repr(self.contents)})'
 
 
@@ -174,10 +174,12 @@ class ExtractedValue(NumericValue):
 class CodeValue(Value):
     def __init__(
         self, lines: typ.List[str], line_mapping: typ.List[int], origin: str,
+        context: 'Context'
     ):
         self.lines = lines
         self.line_mapping = line_mapping
         self.origin = origin
+        self.context = context
 
         assert len(self.lines) == len(self.line_mapping)
 
@@ -185,12 +187,12 @@ class CodeValue(Value):
 class InstructionMacro:
     def __init__(
         self, name: str, code_block: CodeValue,
-        arg_names: typ.List[str], context: 'Context'
+        arg_names: typ.List[str]
     ) -> None:
         self.name = name
         self.code_block = code_block
         self.arg_names = arg_names
-        self.context = context
+        self.context = code_block.context
 
     def execute(
         self, args: typ.List['Value'],
@@ -396,7 +398,7 @@ class Assembler:
             if not isinstance(code_block, CodeValue):
                 raise ParseError("Expected code block to define instruction")
 
-            macro = InstructionMacro(macro_name, code_block, arg_names, ctx)
+            macro = InstructionMacro(macro_name, code_block, arg_names)
             ctx.define_instruction(macro)
         elif define_type == 'VARIABLE':
             if len(args) != 3:
@@ -416,7 +418,7 @@ class Assembler:
 
         set_type = args[0].contents.upper()
 
-        if set_type == 'VARIABLE_VAL':
+        if set_type == 'VARIABLE':
             if len(args) != 3:
                 raise ParseError('Need 3 args for variable val set')
 
@@ -464,7 +466,7 @@ class Assembler:
         line_mapping = [
             line_index + 1 for line_index in range(len(lines))
         ]
-        parser = Parser(self, lines, line_mapping, filename, traceback)
+        parser = Parser(self, lines, line_mapping, file_path, traceback)
 
         parser.parse_program(ctx)
 
@@ -830,7 +832,7 @@ class Parser:
                 raise ParseError('Minus giving negative value')
 
             return ConstantNumericValue(a - b, num_words)
-        elif name == 'concant_ident':
+        elif name == 'concat_ident':
             if len(args) < 2:
                 raise ParseError('Need at least two identifiers to concat')
 
@@ -843,6 +845,15 @@ class Parser:
                 segments.append(arg.contents)
 
             return IdentifierValue(''.join(segments))
+        elif name == 'read_var':
+            if len(args) != 1 or not isinstance(args[0], IdentifierValue):
+                raise ParseError('Expected ident for read_var')
+
+            var_value = context.find_variable_value(args[0].contents)
+            if var_value is None:
+                raise ParseError(f"Can't find var {args[0].contents}")
+
+            return var_value
         elif name == 'hi':
             if len(args) != 1:
                 raise ParseError('Need 1 arg for hi')
@@ -966,7 +977,7 @@ class Parser:
             current_line_components = []
 
             return CodeValue(
-                lines, line_mapping, self.source_origin,
+                lines, line_mapping, self.source_origin, context
             )
 
         elif m := self.accept(self.VARIABLE_USEAGE_REGEX):
@@ -1081,7 +1092,9 @@ def main() -> None:
         print(" addr | data")
         for i, word in enumerate(program.data):
             if word is not None:
-                print(f" {i:4} | {word.value:4}")
+                lines: typ.List[str] = []
+                word.traceback.gather_lines(lines)
+                print(f" {i:4} | {word.value:4} | {lines[-9]} | {lines[-8]}")
     except AssemblyError as err:
         err.print_info()
 

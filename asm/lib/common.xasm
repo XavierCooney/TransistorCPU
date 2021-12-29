@@ -42,19 +42,49 @@ DEFINE COMMAND, EXECUTE, code_value, {
 DEFINE COMMAND, TIMES, total, code_block, {
     DEFINE VARIABLE, counter, 0_8
     LOOP continue, {
-        SET VARIABLE_VAL, continue, is_lt($counter, $total)
+        SET VARIABLE, continue, is_lt($counter, $total)
     }, {
         EXECUTE $code_block
-        SET VARIABLE_VAL, counter, plus($counter, 1)
+        SET VARIABLE, counter, plus($counter, 1)
     }
 }
 
 DEFINE COMMAND, ALIGN_TO, mask, {
     ASSERT is_pow_of_two($mask)
+    DEFINE VARIABLE, mod_val, mod($$, $mask)
 
-    SKIP_DATA minus($mask, mod($$, $mask))
+    IF not(is_eq($mod_val, 0)), {
+        SKIP_DATA minus($mask, mod($$, $mask))
+    }
 }
+
+DEFINE VARIABLE, common_code_section_init, { }
+DEFINE VARIABLE, common_code_section_functions, { }
+DEFINE VARIABLE, common_code_section_misc_data, { }
+DEFINE VARIABLE, common_code_section_bin_tables, { }
+
+DEFINE COMMAND, SECTION, name, code, {
+    DEFINE VARIABLE, var_name, concat_ident(common_code_section_, $name)
+    DEFINE VARIABLE, old_code, read_var($var_name)
+    SET VARIABLE, $var_name, {
+        EXECUTE $old_code
+        EXECUTE $code
+    }
+}
+
+
+DEFINE COMMAND, WRITE_SECTIONS, {
+    ALIGN_TO 4
+    :initialise
+    EXECUTE $common_code_section_init
+    JUMP :main
+    EXECUTE $common_code_section_functions
+    EXECUTE $common_code_section_misc_data
+    EXECUTE $common_code_section_bin_tables
+}
+
 
 IF $com_needed_addition, { UP {
     INCLUDE addition
 } }
+

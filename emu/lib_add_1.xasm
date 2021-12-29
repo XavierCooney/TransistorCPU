@@ -1,0 +1,22 @@
+INCLUDE common_pre
+NEED addition
+INCLUDE common
+
+    JUMP :initialise
+:main
+    BINARY_ADD 4, 7
+    OUTPUT_A 1
+    REM 11
+
+    BINARY_ADD 50, 49
+    OUTPUT_A 1
+    REM 35
+
+    LOAD_CONSTANT 42
+    UNARY_ADD 12
+    OUTPUT_A 1
+    REM 56
+
+    HALT_LOOP
+
+WRITE_SECTIONS

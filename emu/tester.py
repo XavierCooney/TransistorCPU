@@ -84,10 +84,17 @@ class Addition1Test(SimpleTest):
     expected_output: ExpectedOutput = [11, 35, 54]
 
 
+class LibAddTest(SimpleTest):
+    xasm_file = 'lib_add_1'
+    test_name = 'library adder'
+    expected_output: ExpectedOutput = [11, 35, 54]
+
+
 all_tests = [
     Count1Test(),
     NoOpTest(),
-    Addition1Test()
+    Addition1Test(),
+    LibAddTest()
 ]
 
 VERBOSE = True

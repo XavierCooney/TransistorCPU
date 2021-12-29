@@ -4,5 +4,5 @@ DEFINE VARIABLE, com_needed_addition, 0
 
 
 DEFINE COMMAND, NEED, name, {
-    SET VARIABLE_VAL, concant_ident(com_needed_, $name), 1
+    SET VARIABLE, concat_ident(com_needed_, $name), 1
 }
