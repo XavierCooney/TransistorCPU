@@ -1,0 +1,14 @@
+DEFINE COMMAND, EXECUTE, code_value, {
+    DEFINE COMMAND, RUN_CODE_VALUE, $code_value
+    RUN_CODE_VALUE
+}
+
+DEFINE COMMAND, TIMES, total, code_block, {
+    DEFINE VARIABLE, counter, 0_8
+    LOOP continue, {
+        SET VARIABLE, continue, is_lt($counter, $total)
+    }, {
+        EXECUTE $code_block
+        SET VARIABLE, counter, plus($counter, 1)
+    }
+}

@@ -33,7 +33,7 @@ SECTION misc_data, {
 SECTION bin_tables, {
     ALIGN_TO 4096_3
 :addition_table
-    TIMES 4096_3, { DATA 0 }
+    ALLOCATE_ZEROS 4096_3
 }
 
 DEFINE COMMAND, BINARY_ADD, x, y, {

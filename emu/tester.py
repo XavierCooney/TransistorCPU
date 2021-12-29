@@ -1,6 +1,7 @@
 import abc
-import os
 import itertools
+import os
+import time
 import typing as typ
 
 from asm import assembler
@@ -22,13 +23,22 @@ class SimpleTest(abc.ABC):
     def expected_output(self) -> ExpectedOutput: pass
 
     def setup(self, verbose: bool) -> bool:
+        self.timer = time.time()
         self.assembler = assembler.Assembler()
         try:
             self.assembler.assemble_file(os.path.join(
                 os.path.dirname(__file__),
                 self.xasm_file
             ) + '.xasm')
+            if verbose:
+                print(f'Assembled in {time.time() - self.timer:.3f}')
+            self.timer = time.time()
+
             program = self.assembler.link_data()
+            if verbose:
+                print(f'Linked in {time.time() - self.timer:.3f}')
+                self.timer = time.time()
+
         except assembler.AssemblyError as err:
             print(f"  Failed to assemble on test {self.test_name}")
             err.print_info()
@@ -47,6 +57,11 @@ class SimpleTest(abc.ABC):
 
         while not self.halt_condition():
             self.emulator.step()
+
+        if verbose:
+            print(f'\nRan in {time.time() - self.timer:.3f}')
+            self.timer = time.time()
+
         if verbose:
             print('\n Halted')
 

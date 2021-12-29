@@ -1,53 +1,10 @@
 ASSERT $com_pre_is_included
 
-DEFINE COMMAND, INSTRUCTION_DATA, data, {
-    REM TODO: check alignment, wraparound
-    ASSERT is_eq(mod($$, 4), 0)
-    DATA make(4, $data)
-}
-
-DEFINE COMMAND, LOAD_A, address, {
-    INSTRUCTION_DATA make(4, 0b100000, $address)
-}
-DEFINE COMMAND, STORE_A, address, {
-    INSTRUCTION_DATA make(4, 0b110000, $address)
-}
-DEFINE COMMAND, UNARY_OP, address_start, {
-    INSTRUCTION_DATA make(4, 0b101000, $address_start, 0_1)
-}
-DEFINE COMMAND, INC_A, {
-    INSTRUCTION_DATA make(4, 0b010000, 0_3)
-}
-DEFINE COMMAND, OUTPUT_A, output_type, {
-    INSTRUCTION_DATA make(4, 0b000010, $output_type, 0_2)
-}
-DEFINE COMMAND, JUMP, address, {
-    INSTRUCTION_DATA make(4, 0b001100, $address)
-}
-DEFINE COMMAND, JUMP_NZ, address, {
-    INSTRUCTION_DATA make(4, 0b001010, $address)
-}
-DEFINE COMMAND, JUMP_INPUT_READY, address, {
-    INSTRUCTION_DATA make(4, 0b001001, $address)
-}
+INCLUDE instructions
+INCLUDE asm_control
 
 DEFINE COMMAND, HALT_LOOP, {
     JUMP $$
-}
-
-DEFINE COMMAND, EXECUTE, code_value, {
-    DEFINE COMMAND, RUN_CODE_VALUE, $code_value
-    RUN_CODE_VALUE
-}
-
-DEFINE COMMAND, TIMES, total, code_block, {
-    DEFINE VARIABLE, counter, 0_8
-    LOOP continue, {
-        SET VARIABLE, continue, is_lt($counter, $total)
-    }, {
-        EXECUTE $code_block
-        SET VARIABLE, counter, plus($counter, 1)
-    }
 }
 
 DEFINE COMMAND, ALIGN_TO, mask, {
@@ -57,6 +14,11 @@ DEFINE COMMAND, ALIGN_TO, mask, {
     IF not(is_eq($mod_val, 0)), {
         SKIP_DATA minus($mask, mod($$, $mask))
     }
+}
+
+DEFINE COMMAND, ALLOCATE_ZEROS, size, {
+    ASSERT not(is_eq($size, 0))
+    DATA zero_extend_numeric(0_1, $size)
 }
 
 DEFINE VARIABLE, common_code_section_init, { }

@@ -836,6 +836,11 @@ class Parser:
                 raise ParseError('Minus giving negative value')
 
             return ConstantNumericValue(a - b, num_words)
+        elif name == 'zero_extend_numeric':
+            num_words, values = self.get_numeric_values_from_args(2, args)
+            a, b = values
+
+            return ConstantNumericValue(a, b)
         elif name == 'concat_ident':
             if len(args) < 2:
                 raise ParseError('Need at least two identifiers to concat')
