@@ -2,6 +2,7 @@ ASSERT $com_pre_is_included
 
 DEFINE COMMAND, INSTRUCTION_DATA, data, {
     REM TODO: check alignment, wraparound
+    ASSERT is_eq(mod($$, 4), 0)
     DATA make(4, $data)
 }
 
@@ -83,8 +84,12 @@ DEFINE COMMAND, WRITE_SECTIONS, {
     EXECUTE $common_code_section_bin_tables
 }
 
+IF_NEEDED multiplication, { NEED addition }
 
-IF $com_needed_addition, { UP {
+IF_NEEDED addition, { UP {
     INCLUDE addition
 } }
 
+IF_NEEDED multiplication, { UP {
+    INCLUDE multiplication
+} }

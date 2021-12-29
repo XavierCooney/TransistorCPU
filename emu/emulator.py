@@ -144,11 +144,11 @@ class Emulator:
             if output_type == 0:
                 assert 0 <= self.a_register < len(STRING_CHARS)
                 if self.verbose:
-                    print(STRING_CHARS[self.a_register], end='')
+                    print(STRING_CHARS[self.a_register], end='', flush=True)
                 self.outputs.append(STRING_CHARS[self.a_register])
             elif output_type == 1:
                 if self.verbose:
-                    print(self.a_register, end=' ')
+                    print(self.a_register, end=' ', flush=True)
                 self.outputs.append(self.a_register)
             else:
                 assert False

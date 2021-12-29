@@ -571,7 +571,7 @@ class Assembler:
         body_parser.parse_program(context)
 
     def run_up_command(
-        self, args: typ.List[Value], parent_ctx: Context,
+        self, args: typ.List[Value], command_ctx: Context,
         traceback: ProgramTraceback
     ) -> None:
         if len(args) != 1:
@@ -582,7 +582,11 @@ class Assembler:
         if not isinstance(body, CodeValue):
             raise ParseError('Need code block for UP')
 
-        context = parent_ctx.parent
+        defining_context = body.context.parent
+        if defining_context is None:
+            raise ParseError('UP in top level context')
+
+        context = defining_context.parent
         if context is None:
             raise ParseError('UP in top level context')
 

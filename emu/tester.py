@@ -90,11 +90,18 @@ class LibAddTest(SimpleTest):
     expected_output: ExpectedOutput = [11, 35, 54]
 
 
+class LibMultiplyTest(SimpleTest):
+    xasm_file = 'lib_mult_1'
+    test_name = 'library multiplier'
+    expected_output: ExpectedOutput = [42, 12, 12]
+
+
 all_tests = [
     Count1Test(),
     NoOpTest(),
     Addition1Test(),
-    LibAddTest()
+    LibAddTest(),
+    LibMultiplyTest(),
 ]
 
 VERBOSE = True

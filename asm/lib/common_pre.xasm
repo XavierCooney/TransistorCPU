@@ -1,8 +1,13 @@
 DEFINE VARIABLE, com_pre_is_included, 1
 
 DEFINE VARIABLE, com_needed_addition, 0
+DEFINE VARIABLE, com_needed_multiplication, 0
 
 
 DEFINE COMMAND, NEED, name, {
     SET VARIABLE, concat_ident(com_needed_, $name), 1
+}
+
+DEFINE COMMAND, IF_NEEDED, name, code, {
+    IF read_var(concat_ident(com_needed_, $name)), $code
 }
