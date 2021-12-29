@@ -267,10 +267,15 @@ class Context:
 
 class ProgramTraceback:
     def __init__(
-        self, previous: typ.Optional['ProgramTraceback'], lines: typ.List[str]
+        self, previous: typ.Optional['ProgramTraceback'], lines: typ.List[str],
+        program_line: str, line_origin: str, is_internal: bool
     ) -> None:
         self.previous = previous
         self.lines = lines
+
+        self.program_line = program_line
+        self.line_origin = line_origin
+        self.is_internal = is_internal
 
     def print(self) -> None:
         if self.previous is not None:
@@ -286,6 +291,15 @@ class ProgramTraceback:
         total_lines: typ.List[str] = []
         self.gather_lines(total_lines)
         raise LinkTimeError(total_lines, msg)
+
+    def get_deepst_non_internal(self) -> 'ProgramTraceback':
+        if self.is_internal:
+            if self.previous is not None:
+                return self.previous.get_deepst_non_internal()
+            else:
+                raise Exception('All internal!')
+        else:
+            return self
 
 
 class Assembler:
@@ -304,7 +318,7 @@ class Assembler:
 
         with open(file_name) as file:
             source = file.read()
-        self.assemble_source(source, f'"{os.path.abspath(file_name)}"')
+        self.assemble_source(source, os.path.abspath(file_name))
 
     def assemble_source(self, source: str, source_origin: str) -> None:
         sanitised = source.replace('\r', '')
@@ -888,15 +902,24 @@ class Parser:
     def current_traceback(self) -> ProgramTraceback:
         offending_line_contents = self.lines[self.last_command_line_num][:-1]
 
-        traceback = []
-        traceback.append(
-            f"At {self.source_origin} on line "
-            f"{self.line_mapping[self.last_command_line_num]}:"
-        )
-        traceback.append(f"    {offending_line_contents}")
-        traceback.append("    " + "^" * len(offending_line_contents))
+        line_number = self.line_mapping[self.last_command_line_num]
 
-        return ProgramTraceback(self.parent_traceback, traceback)
+        full_line_origin = (
+            f'At "{self.source_origin}" on line '
+            f'{line_number}:'
+        )
+        line_origin = f'{os.path.basename(self.source_origin)}:{line_number}'
+
+        program_line = f"    {offending_line_contents}"
+        # TODO: make is_internal more sophisticated
+        is_internal = self.source_origin.endswith('instructions.xasm')
+
+        traceback = [full_line_origin, program_line]
+
+        return ProgramTraceback(
+            self.parent_traceback, traceback, program_line, line_origin,
+            is_internal
+        )
 
     def parse_arg(self, context: Context) -> Value:
         if m := self.accept(self.IDENTIFIER_REGEX):
@@ -1059,8 +1082,8 @@ class Parser:
         offending_line_contents = self.lines[line_num][:-1]
         traceback = []
         traceback.append(
-            f"At {self.source_origin} on line "
-            f"{self.line_mapping[line_num]}:"
+            f'At "{self.source_origin}" on line '
+            f'{self.line_mapping[line_num]}:'
         )
         traceback.append(f"    {offending_line_contents}")
         if full_line:

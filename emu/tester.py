@@ -28,6 +28,7 @@ class SimpleTest(abc.ABC):
         try:
             self.assembler.assemble_file(os.path.join(
                 os.path.dirname(__file__),
+                'tests',
                 self.xasm_file
             ) + '.xasm')
             if verbose:

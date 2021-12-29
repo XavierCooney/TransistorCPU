@@ -37,7 +37,7 @@ class Emulator:
 
     @staticmethod
     def int_to_words(value: int, num_words: int) -> typ.List[int]:
-        assert value > 0
+        assert value >= 0
 
         words_reversed = []
         while value:
