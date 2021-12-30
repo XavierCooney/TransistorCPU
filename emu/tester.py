@@ -112,17 +112,28 @@ class LibMultiplyTest(SimpleTest):
     expected_output: ExpectedOutput = [42, 12, 12]
 
 
+class LibUnaryMinusTest(SimpleTest):
+    xasm_file = 'lib_unary_minus_1'
+    test_name = 'library unary minus'
+
+    expected_output: ExpectedOutput = [49, 42, 8, 0, 63, 1]
+
+
 all_tests = [
     Count1Test(),
     NoOpTest(),
     Addition1Test(),
     LibAddTest(),
     LibMultiplyTest(),
+    LibUnaryMinusTest(),
 ]
 
 VERBOSE = True
 
 if __name__ == '__main__':
+    test_directory_path = os.path.join(os.path.dirname(__file__), 'tests')
+    assert len(os.listdir(test_directory_path)) == len(all_tests)
+
     for test in all_tests:
         if not test.run(VERBOSE):
             break
