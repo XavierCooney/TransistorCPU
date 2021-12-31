@@ -2,10 +2,10 @@ REM NEED multiplication
 REM I originally wrote a whole big function to do this until I realised
 REM -x = 63 * x (mod 64)
 
-DEFINE COMMAND, UNARY_MINUS, x, {
+DEFINE COMMAND, UNARY_NEGATE, x, {
     BINARY_MULTIPLY 63, $x
 }
 
-DEFINE COMMAND, UNARY_MINUS_ON_A, {
+DEFINE COMMAND, UNARY_NEGATE_A, {
     UNARY_MULTIPLY 63
 }

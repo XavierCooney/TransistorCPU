@@ -34,7 +34,7 @@ DEFINE COMMAND, BINARY_ADD, x, y, {
     LOAD_A make(3, hi(:addition_table), $x, $y)
 }
 DEFINE COMMAND, UNARY_ADD, x, {
-    UNARY_OP make(2, hi(:addition_table), $x)
+    LOAD_A_WITH_A make(2, hi(:addition_table), $x)
 }
 DEFINE COMMAND, LOAD_CONSTANT, x, {
     BINARY_ADD 0, $x

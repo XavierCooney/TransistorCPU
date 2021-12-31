@@ -36,12 +36,12 @@ SECTION bin_tables, {
     ALLOCATE_ZEROS 4096_3
 }
 
-DEFINE COMMAND, BINARY_ADD, x, y, {
+DEFINE INTERNAL_COMMAND, BINARY_ADD, x, y, {
     LOAD_A make(3, hi(:addition_table), $x, $y)
 }
-DEFINE COMMAND, UNARY_ADD, x, {
-    UNARY_OP make(2, hi(:addition_table), $x)
+DEFINE INTERNAL_COMMAND, BINARY_ADD_WITH_A, x, {
+    LOAD_A_WITH_A make(2, hi(:addition_table), $x)
 }
-DEFINE COMMAND, LOAD_CONSTANT, x, {
+DEFINE INTERNAL_COMMAND, LOAD_CONSTANT, x, {
     BINARY_ADD 0, $x
 }

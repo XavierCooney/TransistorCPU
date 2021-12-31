@@ -5,28 +5,28 @@ INCLUDE common
     JUMP :initialise
 :main
     LOAD_CONSTANT 15
-    UNARY_MINUS_ON_A
+    UNARY_NEGATE_A
     OUTPUT_A 1
     REM -15 = 49
 
-    UNARY_MINUS 22
+    UNARY_NEGATE 22
     OUTPUT_A 1
     REM -22 = 42
 
-    UNARY_MINUS 32
-    UNARY_ADD 40
+    UNARY_NEGATE 32
+    BINARY_ADD_WITH_A 40
     OUTPUT_A 1
     REM 40 - 32 = 8
 
-    UNARY_MINUS 0
+    UNARY_NEGATE 0
     OUTPUT_A 1
     REM -0 = 0
 
-    UNARY_MINUS 1
+    UNARY_NEGATE 1
     OUTPUT_A 1
     REM -1 = 63
 
-    UNARY_MINUS 63
+    UNARY_NEGATE 63
     OUTPUT_A 1
     REM -63 = 1
 

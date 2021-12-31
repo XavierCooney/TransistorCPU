@@ -187,12 +187,13 @@ class CodeValue(Value):
 class InstructionMacro:
     def __init__(
         self, name: str, code_block: CodeValue,
-        arg_names: typ.List[str]
+        arg_names: typ.List[str], is_internal: bool
     ) -> None:
         self.name = name
         self.code_block = code_block
         self.arg_names = arg_names
         self.context = code_block.context
+        self.is_internal = is_internal
 
     def execute(
         self, args: typ.List['Value'],
@@ -210,7 +211,7 @@ class InstructionMacro:
 
         parser = Parser(
             assembler, self.code_block.lines, self.code_block.line_mapping,
-            self.code_block.origin, traceback
+            self.code_block.origin, traceback, self.is_internal
         )
         parser.parse_program(new_context)
 
@@ -329,7 +330,7 @@ class Assembler:
         line_mapping = [
             line_index + 1 for line_index in range(len(lines))
         ]
-        parser = Parser(self, lines, line_mapping, source_origin, None)
+        parser = Parser(self, lines, line_mapping, source_origin, None, False)
 
         parser.parse_program(Context(None))
 
@@ -393,7 +394,7 @@ class Assembler:
 
         define_type = args[0].contents.upper()
 
-        if define_type == 'COMMAND':
+        if define_type in ('COMMAND', 'INTERNAL_COMMAND'):
             if len(args) < 2 or not isinstance(args[1], IdentifierValue):
                 raise ParseError("Need instruction name")
 
@@ -414,7 +415,13 @@ class Assembler:
             if not isinstance(code_block, CodeValue):
                 raise ParseError("Expected code block to define instruction")
 
-            macro = InstructionMacro(macro_name, code_block, arg_names)
+            is_internal = {
+                'INTERNAL_COMMAND': True,
+                'COMMAND': False
+            }[define_type]
+            macro = InstructionMacro(
+                macro_name, code_block, arg_names, is_internal
+            )
             ctx.define_instruction(macro)
         elif define_type == 'VARIABLE':
             if len(args) != 3:
@@ -426,7 +433,7 @@ class Assembler:
 
             ctx.define_variable(var_name, args[2])
         else:
-            raise ParseError('Unknown define type')
+            raise ParseError(f'Unknown define type {define_type}')
 
     def run_set_command(self, args: typ.List[Value], ctx: Context) -> None:
         if len(args) < 1 or not isinstance(args[0], IdentifierValue):
@@ -672,16 +679,17 @@ class Assembler:
 
 
 class Parser:
-    IDENTIFIER_REGEX = r'[a-zA-Z_][a-zA-Z_0-9=]*'
-    VARIABLE_USEAGE_REGEX = r'\$([a-zA-Z_][a-zA-Z_0-9=]*)'
+    IDENTIFIER_REGEX = r'[a-zA-Z_][a-zA-Z_0-9]*'
+    VARIABLE_USEAGE_REGEX = r'\$([a-zA-Z_][a-zA-Z_0-9]*)'
     NUMERIC_REGEX = r'(0b[01]+)|(0x[a-fA-F0-9]+)|([1-9][0-9]*)|0'
-    MAIN_LABEL_REGEX = r'(\.|:)([a-zA-Z_][a-zA-Z_0-9=.]*)'
-    DECLARE_INLINE_LABEL_REGEX = r'%(\.|:)([a-zA-Z_][a-zA-Z_0-9=.]*)'
+    MAIN_LABEL_REGEX = r'(\.|:)([a-zA-Z_][a-zA-Z_0-9.]*)'
+    DECLARE_INLINE_LABEL_REGEX = r'%(\.|:)([a-zA-Z_][a-zA-Z_0-9.]*)'
 
     def __init__(
         self, assembler: Assembler, virtual_lines: typ.List[str],
         virtual_line_mapping: typ.List[int], original_file_name: str,
-        parent_traceback: typ.Optional[ProgramTraceback]
+        parent_traceback: typ.Optional[ProgramTraceback],
+        is_internal: typ.Optional[bool] = None
     ) -> None:
         self.lines = [
             line + '\n' for line in virtual_lines
@@ -694,6 +702,12 @@ class Parser:
         self.line_mapping = virtual_line_mapping
         self.source_origin = original_file_name
         self.parent_traceback = parent_traceback
+
+        if is_internal is not None:
+            self.is_internal = is_internal
+        else:
+            assert self.parent_traceback is not None
+            self.is_internal = self.parent_traceback.is_internal
 
     def advance(self, length: int, skip_whitespace: bool = True) -> None:
         self.column_num += length
@@ -909,8 +923,7 @@ class Parser:
         line_origin = f'{os.path.basename(self.source_origin)}:{line_number}'
 
         program_line = f"    {offending_line_contents}"
-        # TODO: make is_internal more sophisticated
-        is_internal = self.source_origin.endswith('instructions.xasm')
+        is_internal = self.is_internal
 
         traceback = [full_line_origin, program_line]
 

@@ -1,30 +1,30 @@
-DEFINE COMMAND, INSTRUCTION_DATA, data, {
+DEFINE INTERNAL_COMMAND, INSTRUCTION_DATA, data, {
     REM TODO: check alignment, wraparound
     ASSERT is_eq(mod($$, 4), 0)
     DATA make(4, $data)
 }
 
-DEFINE COMMAND, LOAD_A, address, {
+DEFINE INTERNAL_COMMAND, LOAD_A, address, {
     INSTRUCTION_DATA make(4, 0b100000, $address)
 }
-DEFINE COMMAND, STORE_A, address, {
+DEFINE INTERNAL_COMMAND, STORE_A, address, {
     INSTRUCTION_DATA make(4, 0b110000, $address)
 }
-DEFINE COMMAND, UNARY_OP, address_start, {
+DEFINE INTERNAL_COMMAND, LOAD_A_WITH_A, address_start, {
     INSTRUCTION_DATA make(4, 0b101000, $address_start, 0_1)
 }
-DEFINE COMMAND, INC_A, {
+DEFINE INTERNAL_COMMAND, INC_A, {
     INSTRUCTION_DATA make(4, 0b010000, 0_3)
 }
-DEFINE COMMAND, OUTPUT_A, output_type, {
+DEFINE INTERNAL_COMMAND, OUTPUT_A, output_type, {
     INSTRUCTION_DATA make(4, 0b000010, $output_type, 0_2)
 }
-DEFINE COMMAND, JUMP, address, {
+DEFINE INTERNAL_COMMAND, JUMP, address, {
     INSTRUCTION_DATA make(4, 0b001100, $address)
 }
-DEFINE COMMAND, JUMP_NZ, address, {
+DEFINE INTERNAL_COMMAND, JUMP_NZ, address, {
     INSTRUCTION_DATA make(4, 0b001010, $address)
 }
-DEFINE COMMAND, JUMP_INPUT_READY, address, {
+DEFINE INTERNAL_COMMAND, JUMP_INPUT_READY, address, {
     INSTRUCTION_DATA make(4, 0b001001, $address)
 }

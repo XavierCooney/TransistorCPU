@@ -4,7 +4,7 @@ SECTION init, {
     LOAD_A .val_product
     STORE_A make(3, hi(:multiplication_table), %.val_x_1, %.val_y)
 
-    UNARY_ADD %.val_x_2
+    BINARY_ADD_WITH_A %.val_x_2
     STORE_A .val_product
 
     LOAD_A .val_y
@@ -34,9 +34,9 @@ SECTION bin_tables, {
     ALLOCATE_ZEROS 4096_3
 }
 
-DEFINE COMMAND, BINARY_MULTIPLY, x, y, {
+DEFINE INTERNAL_COMMAND, BINARY_MULTIPLY, x, y, {
     LOAD_A make(3, hi(:multiplication_table), $x, $y)
 }
-DEFINE COMMAND, UNARY_MULTIPLY, x, {
-    UNARY_OP make(2, hi(:multiplication_table), $x)
+DEFINE INTERNAL_COMMAND, UNARY_MULTIPLY, x, {
+    LOAD_A_WITH_A make(2, hi(:multiplication_table), $x)
 }

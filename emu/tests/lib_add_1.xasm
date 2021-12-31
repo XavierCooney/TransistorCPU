@@ -13,7 +13,7 @@ INCLUDE common
     REM 35
 
     LOAD_CONSTANT 42
-    UNARY_ADD 12
+    BINARY_ADD_WITH_A 12
     OUTPUT_A 1
     REM 56
 

@@ -27,6 +27,9 @@ class Emulator:
         self.verbose = verbose
         self.outputs: typ.List[typ.Union[int, str]] = []
 
+        OutputHandlerType = typ.Callable[[typ.Union[str, int]], None]
+        self.output_handler: OutputHandlerType = lambda data: None
+
     @staticmethod
     def words_to_int(words: typ.List[int]) -> int:
         value = 0
@@ -90,6 +93,12 @@ class Emulator:
         else:
             word.traceback.trigger_error(msg)
 
+    def perform_output(self, data: typ.Union[str, int]) -> None:
+        if self.verbose:
+            print(data, end=' ', flush=True)
+        self.outputs.append(data)
+        self.output_handler(data)
+
     def step(self) -> None:
         # FETCH
         opcode = self.read_ram_from_pc(0)
@@ -143,13 +152,9 @@ class Emulator:
 
             if output_type == 0:
                 assert 0 <= self.a_register < len(STRING_CHARS)
-                if self.verbose:
-                    print(STRING_CHARS[self.a_register], end='', flush=True)
-                self.outputs.append(STRING_CHARS[self.a_register])
+                self.perform_output(STRING_CHARS[self.a_register])
             elif output_type == 1:
-                if self.verbose:
-                    print(self.a_register, end=' ', flush=True)
-                self.outputs.append(self.a_register)
+                self.perform_output(self.a_register)
             else:
                 assert False
         elif opcode & 0b000001:
