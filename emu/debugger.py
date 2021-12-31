@@ -1,8 +1,9 @@
+import abc
 import enum
 import sys
 import typing as typ
 
-from asm.assembler import Assembler
+from asm.assembler import Assembler, AssemblyError
 
 from .emulator import Emulator
 
@@ -13,12 +14,41 @@ class RunState(enum.Enum):
     RUNNING = enum.auto()
 
 
+class Breakpoint(abc.ABC):
+    @abc.abstractmethod
+    def is_triggered(self, emu: 'Emulator') -> bool: pass
+
+    @abc.abstractmethod
+    def stringify(self, debugger: 'Debugger') -> str: pass
+
+
+class SimpleBreakpoint(Breakpoint):
+    # this is special because we don't know which breakpoint to refer to
+    def __init__(self, pc: int):
+        self.pc = pc
+
+    def is_triggered(self, emu: 'Emulator') -> bool:
+        return emu.program_counter == self.pc
+
+    def stringify(self, debugger: 'Debugger') -> str:
+        if self.pc in debugger.emu.compiled_program.address_to_labels:
+            labels = debugger.emu.compiled_program.address_to_labels[self.pc]
+            label_text = ' (' + ', '.join(labels) + ')'
+        else:
+            label_text = ''
+        return f'simple, {debugger.memory_info(self.pc)}' + label_text
+
+
 class Debugger:
     def __init__(self, emu: Emulator):
         self.emu = emu
         self.running_state = RunState.PAUSED
         self.last_command = ''
         self.prompted_from_pause = False
+        self.pause_on_output = True
+        self.breakpoints: typ.List[Breakpoint] = []
+
+        emu.output_handler = self.on_output
 
     def exit(self) -> typ.NoReturn:
         sys.exit(0)
@@ -120,7 +150,7 @@ class Debugger:
             print('STORE_A', self.memory_info(as_full_address))
         elif opcode == 0b101000:
             address = self.emu.words_to_int(args[:2] + [self.emu.a_register])
-            print('UNARY_OP', self.memory_info(address))
+            print('LOAD_A_WITH_A', self.memory_info(address))
         elif opcode == 0b010000:
             print('INC_A')
         elif opcode == 0b000010:
@@ -155,6 +185,13 @@ class Debugger:
             if address is not None:
                 self.traceback_word(address, True)
                 print(self.memory_info(address))
+        elif command in ('b', 'breakpoint'):
+            address = self.decode_address(' '.join(args))
+
+            if address is not None:
+                bp = SimpleBreakpoint(address)
+                self.breakpoints.append(bp)
+                print('New breakpoint:', bp.stringify(self))
         elif command == '.':
             self.print_current_instruction(full_traceback=True)
         else:
@@ -180,12 +217,23 @@ class Debugger:
         splitted = command.split(' ')
         self.run_command(splitted[0], splitted[1:])
 
+    def on_output(self, data: typ.Union[str, int]) -> None:
+        print('Output:', data)
+        if self.pause_on_output:
+            print('Break due to output')
+            self.running_state = RunState.PAUSED
+
     def run_step(self) -> None:
         self.emu.step()
 
         if self.emu.is_self_jump():
             print('Break due to halt loop')
             self.running_state = RunState.PAUSED
+
+        for bp in self.breakpoints:
+            if bp.is_triggered(self.emu):
+                print(f'Break due to [{bp.stringify(self)}]')
+                self.running_state = RunState.PAUSED
 
     def run(self) -> None:
         while True:
@@ -199,8 +247,12 @@ class Debugger:
                 self.run_step()
                 self.running_state = RunState.PAUSED
             else:
-                while self.running_state == RunState.RUNNING:
-                    self.run_step()
+                try:
+                    while self.running_state == RunState.RUNNING:
+                        self.run_step()
+                except KeyboardInterrupt:
+                    print('Break due to ^C')
+                    self.running_state = RunState.PAUSED
 
 
 if __name__ == '__main__':
@@ -210,9 +262,14 @@ if __name__ == '__main__':
 
     print("Loading... ")
     filename = sys.argv[1]
-    asm = Assembler()
-    asm.assemble_file(filename)
-    compiled = asm.link_data()
 
-    emulator = Emulator(compiled, False)
-    Debugger(emulator).run()
+    try:
+        asm = Assembler()
+        asm.assemble_file(filename)
+        compiled = asm.link_data()
+
+        emulator = Emulator(compiled, False)
+        Debugger(emulator).run()
+    except AssemblyError as err:
+        err.print_info()
+        sys.exit(1)
