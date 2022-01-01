@@ -1,0 +1,53 @@
+SECTION init, {
+:initialise_unary_logic_tables.start
+    LOAD_CONSTANT 0
+    STORE_A :unary_logic_bool_table
+
+    .bool_loop
+    LOAD_CONSTANT 1
+    STORE_A make(3, hi_mid(:unary_logic_bool_table), %.idx_bool=1)
+
+    LOAD_A .idx_bool
+    INC_A
+    STORE_A .idx_bool
+    JUMP_NZ .bool_loop
+
+
+    LOAD_CONSTANT 1
+    STORE_A :unary_logic_not_table
+
+    .not_loop
+    LOAD_CONSTANT 0
+    STORE_A make(3, hi_mid(:unary_logic_not_table), %.idx_not=1)
+
+    LOAD_A .idx_not
+    INC_A
+    STORE_A .idx_not
+    JUMP_NZ .not_loop
+}
+
+SECTION misc_data, {
+:initialise_unary_logic_tables
+}
+
+SECTION unary_tables, {
+    ALIGN_TO 64_3
+:unary_logic_bool_table
+    ALLOCATE_ZEROS 64_3
+:unary_logic_not_table
+    ALLOCATE_ZEROS 64_3
+}
+
+DEFINE COMMAND, UNARY_TO_BOOL, x, {
+    LOAD_A make(3, hi_mid(:unary_logic_bool_table), $x)
+}
+DEFINE COMMAND, UNARY_TO_BOOL_A, {
+    LOAD_A_WITH_A make(2, hi_mid(:unary_logic_bool_table))
+}
+
+DEFINE COMMAND, UNARY_NOT, x, {
+    LOAD_A make(3, hi_mid(:unary_logic_not_table), $x)
+}
+DEFINE COMMAND, UNARY_NOT_A, {
+    LOAD_A_WITH_A make(2, hi_mid(:unary_logic_not_table))
+}

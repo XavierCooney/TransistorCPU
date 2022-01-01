@@ -897,10 +897,24 @@ class Parser:
 
             num_words = args[0].num_words
             if num_words <= 1:
-                raise ParseError('need more than 1 word for hi()')
+                raise ParseError('need 1 or more words for hi()')
             desired_word_num = 0
 
             return ExtractedValue(args[0], desired_word_num)
+        elif name == 'hi_mid':
+            if len(args) != 1:
+                raise ParseError('Need 1 arg for hi_mid')
+            if not isinstance(args[0], NumericValue):
+                raise ParseError('Expected numeric value for hi_mid command')
+
+            num_words = args[0].num_words
+            if num_words <= 1:
+                raise ParseError('need 2 or more words for hi_mid()')
+
+            return MakeResultValue([
+                ExtractedValue(args[0], 0),
+                ExtractedValue(args[0], 1)
+            ])
         elif name == 'mod':
             num_words, values = self.get_numeric_values_from_args(2, args)
             a, b = values

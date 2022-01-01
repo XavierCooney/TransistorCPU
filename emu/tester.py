@@ -119,6 +119,16 @@ class LibUnaryMinusTest(SimpleTest):
     expected_output: ExpectedOutput = [49, 42, 8, 0, 63, 1]
 
 
+class UnaryLogicTest(SimpleTest):
+    xasm_file = 'lib_unary_logic_1'
+    test_name = 'library unary logic'
+
+    expected_output: ExpectedOutput = [
+        0, 1, 1, 1, 1, 0, 1, 1,
+        1, 0, 0, 0, 0, 1, 0, 0
+    ]
+
+
 all_tests = [
     Count1Test(),
     NoOpTest(),
@@ -126,6 +136,7 @@ all_tests = [
     LibAddTest(),
     LibMultiplyTest(),
     LibUnaryMinusTest(),
+    UnaryLogicTest(),
 ]
 
 VERBOSE = True

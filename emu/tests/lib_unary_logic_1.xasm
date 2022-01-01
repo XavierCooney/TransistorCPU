@@ -1,0 +1,65 @@
+INCLUDE common_pre
+NEED unary_logic
+INCLUDE common
+
+    JUMP :initialise
+:main
+    UNARY_TO_BOOL 0
+    OUTPUT_A 1
+
+    UNARY_TO_BOOL 1
+    OUTPUT_A 1
+
+    UNARY_TO_BOOL 2
+    OUTPUT_A 1
+
+    UNARY_TO_BOOL 42
+    OUTPUT_A 1
+
+    UNARY_TO_BOOL 63
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 0
+    UNARY_TO_BOOL_A
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 1
+    UNARY_TO_BOOL_A
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 63
+    UNARY_TO_BOOL_A
+    OUTPUT_A 1
+
+    REM ====== NOT ======
+
+    UNARY_NOT 0
+    OUTPUT_A 1
+
+    UNARY_NOT 1
+    OUTPUT_A 1
+
+    UNARY_NOT 2
+    OUTPUT_A 1
+
+    UNARY_NOT 42
+    OUTPUT_A 1
+
+    UNARY_NOT 63
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 0
+    UNARY_NOT_A
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 1
+    UNARY_NOT_A
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 63
+    UNARY_NOT_A
+    OUTPUT_A 1
+
+    HALT_LOOP
+
+    WRITE_SECTIONS
