@@ -129,6 +129,21 @@ class UnaryLogicTest(SimpleTest):
     ]
 
 
+class BinaryCompareTest(SimpleTest):
+    xasm_file = 'lib_binary_compare_1'
+    test_name = 'library binary compare'
+
+    expected_output: ExpectedOutput = [
+        1, 0, 0, 1, 0, 0, 1, 0, 0,  # eq
+        0, 1, 1, 0, 1, 1, 0, 1, 1,  # neq
+        1, 0, 0, 0, 0, 1, 1, 0,     # gt
+        0, 1, 0, 0, 0, 0, 0, 1, 1,  # lt
+        0, 1, 1, 1, 1, 0, 0, 1, 1,  # lteq
+        1, 0, 1, 1, 1, 1, 1, 0, 0,  # gteq
+        1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0  # cmp with a
+    ]
+
+
 all_tests = [
     Count1Test(),
     NoOpTest(),
@@ -137,6 +152,7 @@ all_tests = [
     LibMultiplyTest(),
     LibUnaryMinusTest(),
     UnaryLogicTest(),
+    BinaryCompareTest(),
 ]
 
 VERBOSE = True

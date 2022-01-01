@@ -1,0 +1,154 @@
+SECTION init, {
+:initialise_cmp_table.start
+.zero_out_table
+    LOAD_CONSTANT 0
+    STORE_A make(3, hi(:cmp_table), %.zero_out_x, %.zero_out_y)
+
+    LOAD_A .zero_out_x
+    INC_A
+    STORE_A .zero_out_x
+    JUMP_NZ .zero_out_table
+
+    LOAD_A .zero_out_y
+    INC_A
+    STORE_A .zero_out_y
+    JUMP_NZ .zero_out_table
+
+
+.set_ones_loop
+    LOAD_CONSTANT 1
+    STORE_A make(3, hi(:cmp_table), %.eq_ones_x, %.eq_ones_y)
+
+    LOAD_A .eq_ones_x
+    INC_A
+    STORE_A .eq_ones_x
+    STORE_A .eq_ones_y
+
+    JUMP_NZ .set_ones_loop
+
+
+.set_twos_loop
+    LOAD_CONSTANT 2
+    STORE_A make(3, hi(:cmp_table), %.twos_idx_x=1, %.twos_idx_y)
+
+    LOAD_A .twos_idx_x
+    STORE_A .twos_idx_x_cmp
+    LOAD_A .twos_idx_y
+    INC_A
+    STORE_A .twos_idx_y
+    LOAD_A_WITH_A make(2, hi(:cmp_table), %.twos_idx_x_cmp)
+    JUMP_NZ .done_with_this_row
+    JUMP .set_twos_loop
+
+.done_with_this_row
+    LOAD_CONSTANT 0
+    STORE_A .twos_idx_y
+    LOAD_A .twos_idx_x
+    INC_A
+    STORE_A .twos_idx_x
+    JUMP_NZ .set_twos_loop
+}
+
+
+SECTION unary_tables, {
+    REM It's pretty wasteful to use up a whole 64 words when only 3 are needed
+    REM but memory is cheap...
+
+    ALIGN_TO 64_3
+:cmp_convert_eq
+    DATA 0, 1, 0
+
+    ALIGN_TO 64_3
+:cmp_convert_neq
+    DATA 1, 0, 1
+
+    ALIGN_TO 64_3
+:cmp_convert_lt
+    DATA 1, 0, 0
+
+    ALIGN_TO 64_3
+:cmp_convert_lteq
+    DATA 1, 1, 0
+
+    ALIGN_TO 64_3
+:cmp_convert_gt
+    DATA 0, 0, 1
+
+    ALIGN_TO 64_3
+:cmp_convert_gteq
+    DATA 0, 1, 1
+
+    ALIGN_TO 64_3
+}
+
+SECTION bin_tables, {
+    ALIGN_TO 4096_3
+:cmp_table
+    ALLOCATE_ZEROS 4096_3
+}
+
+
+DEFINE INTERNAL_COMMAND, CMP, x, y, {
+    LOAD_A make(3, hi(:cmp_table), $x, $y)
+}
+DEFINE INTERNAL_COMMAND, CMP_WITH_A, x, {
+    LOAD_A_WITH_A make(2, hi(:cmp_table), $x)
+}
+
+DEFINE INTERNAL_COMMAND, CMP_IS_EQ, {
+    LOAD_A_WITH_A make(2, hi_mid(:cmp_convert_eq))
+}
+DEFINE INTERNAL_COMMAND, CMP_X_EQ_Y, {
+    CMP_IS_EQ
+}
+
+DEFINE INTERNAL_COMMAND, CMP_IS_NEQ, {
+    LOAD_A_WITH_A make(2, hi_mid(:cmp_convert_neq))
+}
+DEFINE INTERNAL_COMMAND, CMP_X_NEQ_Y, {
+    CMP_IS_NEQ
+}
+
+DEFINE INTERNAL_COMMAND, CMP_IS_LT, {
+    LOAD_A_WITH_A make(2, hi_mid(:cmp_convert_lt))
+}
+DEFINE INTERNAL_COMMAND, CMP_X_LT_Y, {
+    CMP_IS_LT
+}
+
+DEFINE INTERNAL_COMMAND, CMP_IS_LTEQ, {
+    LOAD_A_WITH_A make(2, hi_mid(:cmp_convert_lteq))
+}
+DEFINE INTERNAL_COMMAND, CMP_X_LTEQ_Y, {
+    CMP_IS_LTEQ
+}
+
+DEFINE INTERNAL_COMMAND, CMP_IS_GT, {
+    LOAD_A_WITH_A make(2, hi_mid(:cmp_convert_gt))
+}
+DEFINE INTERNAL_COMMAND, CMP_X_GT_Y, {
+    CMP_IS_GT
+}
+
+DEFINE INTERNAL_COMMAND, CMP_IS_GTEQ, {
+    LOAD_A_WITH_A make(2, hi_mid(:cmp_convert_gteq))
+}
+DEFINE INTERNAL_COMMAND, CMP_X_GTEQ_Y, {
+    CMP_IS_GTEQ
+}
+
+DEFINE INTERNAL_COMMAND, CMP_A_GT_X, {
+    CMP_IS_LT
+}
+
+DEFINE INTERNAL_COMMAND, CMP_A_LT_X, {
+    CMP_IS_GT
+}
+
+DEFINE INTERNAL_COMMAND, CMP_A_LTEQ_X, {
+    CMP_IS_GTEQ
+}
+
+DEFINE INTERNAL_COMMAND, CMP_A_GTEQ_X, {
+    CMP_IS_LTEQ
+}

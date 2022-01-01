@@ -670,6 +670,13 @@ class Assembler:
             self.run_if_command(arguments, context, traceback)
         elif command_name == 'UP':
             self.run_up_command(arguments, context, traceback)
+        elif command_name == 'SET_GLOBAL_LABEL':
+            if len(arguments) != 1:
+                raise ParseError('Expected global label')
+            if not isinstance(arguments[0], IdentifierValue):
+                raise ParseError(f'Expected ident, not {type(arguments[0])}')
+
+            context.last_global_label = arguments[0].contents
         elif command_name == 'DEBUG_OUT':
             print('DEBUG OUT', arguments)
         elif macro_command := context.find_instruction_macro(command_name):

@@ -1,0 +1,294 @@
+INCLUDE common_pre
+NEED binary_compare
+INCLUDE common
+
+    JUMP :initialise
+:main
+    REM === EQ ===
+    CMP 42, 42
+    CMP_IS_EQ
+    OUTPUT_A 1
+
+    CMP 43, 42
+    CMP_IS_EQ
+    OUTPUT_A 1
+
+    CMP 42, 43
+    CMP_IS_EQ
+    OUTPUT_A 1
+
+    CMP 0, 0
+    CMP_IS_EQ
+    OUTPUT_A 1
+
+    CMP 1, 0
+    CMP_IS_EQ
+    OUTPUT_A 1
+
+    CMP 0, 1
+    CMP_IS_EQ
+    OUTPUT_A 1
+
+    CMP 63, 63
+    CMP_IS_EQ
+    OUTPUT_A 1
+
+    CMP 0, 63
+    CMP_IS_EQ
+    OUTPUT_A 1
+
+    CMP 63, 62
+    CMP_IS_EQ
+    OUTPUT_A 1
+
+
+    REM === NEQ ===
+
+    CMP 42, 42
+    CMP_IS_NEQ
+    OUTPUT_A 1
+
+    CMP 43, 42
+    CMP_IS_NEQ
+    OUTPUT_A 1
+
+    CMP 42, 43
+    CMP_IS_NEQ
+    OUTPUT_A 1
+
+    CMP 0, 0
+    CMP_IS_NEQ
+    OUTPUT_A 1
+
+    CMP 1, 0
+    CMP_IS_NEQ
+    OUTPUT_A 1
+
+    CMP 0, 1
+    CMP_IS_NEQ
+    OUTPUT_A 1
+
+    CMP 63, 63
+    CMP_IS_NEQ
+    OUTPUT_A 1
+
+    CMP 0, 63
+    CMP_IS_NEQ
+    OUTPUT_A 1
+
+    CMP 63, 62
+    CMP_IS_NEQ
+    OUTPUT_A 1
+
+
+    REM === GT ===
+    CMP 1, 0
+    CMP_IS_GT
+    OUTPUT_A 1
+
+    CMP 0, 1
+    CMP_IS_GT
+    OUTPUT_A 1
+
+    CMP 0, 0
+    CMP_IS_GT
+    OUTPUT_A 1
+
+    CMP 1, 1
+    CMP_IS_GT
+    OUTPUT_A 1
+
+    CMP 63, 63
+    CMP_IS_GT
+    OUTPUT_A 1
+
+    CMP 63, 62
+    CMP_IS_GT
+    OUTPUT_A 1
+
+    CMP 63, 0
+    CMP_IS_GT
+    OUTPUT_A 1
+
+    CMP 0, 63
+    CMP_IS_GT
+    OUTPUT_A 1
+
+    REM === LT ===
+    CMP 1, 0
+    CMP_IS_LT
+    OUTPUT_A 1
+
+    CMP 0, 1
+    CMP_IS_LT
+    OUTPUT_A 1
+
+    CMP 0, 0
+    CMP_IS_LT
+    OUTPUT_A 1
+
+    CMP 1, 1
+    CMP_IS_LT
+    OUTPUT_A 1
+
+    CMP 63, 63
+    CMP_IS_LT
+    OUTPUT_A 1
+
+    CMP 63, 62
+    CMP_IS_LT
+    OUTPUT_A 1
+
+    CMP 63, 0
+    CMP_IS_LT
+    OUTPUT_A 1
+
+    CMP 0, 63
+    CMP_IS_LT
+    OUTPUT_A 1
+
+    CMP 62, 63
+    CMP_IS_LT
+    OUTPUT_A 1
+
+    REM === LTEQ ===
+    CMP 1, 0
+    CMP_IS_LTEQ
+    OUTPUT_A 1
+
+    CMP 0, 1
+    CMP_IS_LTEQ
+    OUTPUT_A 1
+
+    CMP 0, 0
+    CMP_IS_LTEQ
+    OUTPUT_A 1
+
+    CMP 1, 1
+    CMP_IS_LTEQ
+    OUTPUT_A 1
+
+    CMP 63, 63
+    CMP_IS_LTEQ
+    OUTPUT_A 1
+
+    CMP 63, 62
+    CMP_IS_LTEQ
+    OUTPUT_A 1
+
+    CMP 63, 0
+    CMP_IS_LTEQ
+    OUTPUT_A 1
+
+    CMP 0, 63
+    CMP_IS_LTEQ
+    OUTPUT_A 1
+
+    CMP 62, 63
+    CMP_IS_LTEQ
+    OUTPUT_A 1
+
+    REM === GTEQ ===
+    CMP 1, 0
+    CMP_IS_GTEQ
+    OUTPUT_A 1
+
+    CMP 0, 1
+    CMP_IS_GTEQ
+    OUTPUT_A 1
+
+    CMP 0, 0
+    CMP_IS_GTEQ
+    OUTPUT_A 1
+
+    CMP 1, 1
+    CMP_IS_GTEQ
+    OUTPUT_A 1
+
+    CMP 63, 63
+    CMP_IS_GTEQ
+    OUTPUT_A 1
+
+    CMP 63, 62
+    CMP_IS_GTEQ
+    OUTPUT_A 1
+
+    CMP 63, 0
+    CMP_IS_GTEQ
+    OUTPUT_A 1
+
+    CMP 0, 63
+    CMP_IS_GTEQ
+    OUTPUT_A 1
+
+    CMP 62, 63
+    CMP_IS_GTEQ
+    OUTPUT_A 1
+
+    REM === With A ===
+    LOAD_CONSTANT 2
+    CMP_WITH_A 1
+    CMP_A_GT_X
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 2
+    CMP_WITH_A 2
+    CMP_A_GT_X
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 1
+    CMP_WITH_A 2
+    CMP_A_GT_X
+    OUTPUT_A 1
+
+
+    LOAD_CONSTANT 2
+    CMP_WITH_A 1
+    CMP_A_LT_X
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 2
+    CMP_WITH_A 2
+    CMP_A_LT_X
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 1
+    CMP_WITH_A 2
+    CMP_A_LT_X
+    OUTPUT_A 1
+
+
+    LOAD_CONSTANT 2
+    CMP_WITH_A 1
+    CMP_A_LTEQ_X
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 2
+    CMP_WITH_A 2
+    CMP_A_LTEQ_X
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 1
+    CMP_WITH_A 2
+    CMP_A_LTEQ_X
+    OUTPUT_A 1
+
+
+    LOAD_CONSTANT 2
+    CMP_WITH_A 1
+    CMP_A_GTEQ_X
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 2
+    CMP_WITH_A 2
+    CMP_A_GTEQ_X
+    OUTPUT_A 1
+
+    LOAD_CONSTANT 1
+    CMP_WITH_A 2
+    CMP_A_GTEQ_X
+    OUTPUT_A 1
+
+    HALT_LOOP
+
+    WRITE_SECTIONS

@@ -52,6 +52,7 @@ DEFINE COMMAND, WRITE_SECTIONS, {
 
 IF_NEEDED unary_minus, { NEED multiplication }
 IF_NEEDED multiplication, { NEED addition }
+IF_NEEDED binary_compare, { NEED addition }
 IF_NEEDED unary_logic, { NEED addition }
 IF_NEEDED addition, { }
 
@@ -61,6 +62,10 @@ IF_NEEDED addition, { UP {
 
 IF_NEEDED unary_logic, { UP {
     INCLUDE unary_logic
+} }
+
+IF_NEEDED binary_compare, { UP {
+    INCLUDE binary_compare
 } }
 
 IF_NEEDED multiplication, { UP {
