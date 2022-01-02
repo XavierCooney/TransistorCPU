@@ -155,6 +155,10 @@ class Emulator:
                 self.perform_output(STRING_CHARS[self.a_register])
             elif output_type == 1:
                 self.perform_output(self.a_register)
+            elif output_type == 2:
+                self.perform_output(self.a_register)
+            elif output_type == 3:
+                self.perform_output('    ')
             else:
                 assert False
         elif opcode & 0b000001:
@@ -164,7 +168,8 @@ class Emulator:
             self.trigger_error_at_current(f'Unknown opcode: 0b{opcode:06b}')
 
         if not did_jump:
-            self.program_counter = (self.program_counter + 4) % (2 ** 10 * 4)
+            # TODO: handle wraparound
+            self.program_counter = self.program_counter + 4
 
     def is_self_jump(self) -> bool:
         # check if the next instruction is a jump to itself, indicating a halt

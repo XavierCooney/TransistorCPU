@@ -39,9 +39,15 @@ SECTION bin_tables, {
 DEFINE INTERNAL_COMMAND, BINARY_ADD, x, y, {
     LOAD_A make(3, hi(:addition_table), $x, $y)
 }
+
 DEFINE INTERNAL_COMMAND, BINARY_ADD_WITH_A, x, {
     LOAD_A_WITH_A make(2, hi(:addition_table), $x)
 }
+
 DEFINE INTERNAL_COMMAND, LOAD_CONSTANT, x, {
     BINARY_ADD 0, $x
+}
+
+DEFINE INTERNAL_COMMAND, DECREMENT_A, {
+    BINARY_ADD_WITH_A 63
 }

@@ -1,0 +1,56 @@
+INCLUDE common_pre
+NEED big_int_10
+INCLUDE common
+
+    JUMP :initialise
+:main
+    LOAD_CONSTANT 1
+    STORE_A :big_int_10_args.alpha
+    LOAD_CONSTANT 1
+    STORE_A :big_int_10_set_to_lt_10.value
+    CALL big_int_10_set_to_lt_10
+
+    LOAD_CONSTANT 2
+    STORE_A :big_int_10_args.alpha
+    LOAD_CONSTANT 1
+    STORE_A :big_int_10_set_to_lt_10.value
+    CALL big_int_10_set_to_lt_10
+
+.loop
+
+    LOAD_CONSTANT 1
+    STORE_A :big_int_10_args.alpha
+
+    CALL big_int_10_output
+
+    LOAD_CONSTANT 2
+    STORE_A :big_int_10_args.beta
+
+    LOAD_CONSTANT 3
+    STORE_A :big_int_10_add.dest
+
+    CALL big_int_10_add
+
+    LOAD_CONSTANT 2
+    STORE_A :big_int_10_args.alpha
+    LOAD_CONSTANT 1
+    STORE_A :big_int_10_args.beta
+    CALL big_int_10_copy
+
+    LOAD_CONSTANT 3
+    STORE_A :big_int_10_args.alpha
+    LOAD_CONSTANT 2
+    STORE_A :big_int_10_args.beta
+    CALL big_int_10_copy
+
+    LOAD_CONSTANT %.iteration_times
+    INC_A
+    STORE_A .iteration_times
+
+    CMP_WITH_A 20
+    CMP_A_LT_X
+    JUMP_NZ .loop
+
+    HALT_LOOP
+
+    WRITE_SECTIONS

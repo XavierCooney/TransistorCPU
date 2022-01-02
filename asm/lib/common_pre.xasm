@@ -5,6 +5,7 @@ DEFINE VARIABLE, com_needed_multiplication, 0
 DEFINE VARIABLE, com_needed_unary_minus, 0
 DEFINE VARIABLE, com_needed_unary_logic, 0
 DEFINE VARIABLE, com_needed_binary_compare, 0
+DEFINE VARIABLE, com_needed_big_int_10, 0
 
 
 DEFINE COMMAND, NEED, name, {

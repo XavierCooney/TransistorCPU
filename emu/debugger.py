@@ -45,7 +45,7 @@ class Debugger:
         self.running_state = RunState.PAUSED
         self.last_command = ''
         self.prompted_from_pause = False
-        self.pause_on_output = True
+        self.pause_on_output = False
         self.breakpoints: typ.List[Breakpoint] = []
 
         emu.output_handler = self.on_output

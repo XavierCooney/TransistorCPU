@@ -1,0 +1,287 @@
+REM Big int with base 10. This is pretty inefficient in terms of meory
+REM usage (~16% utilisation), but who needs to count to 10^64 anyway?
+
+SECTION init, {
+:big_int_10_initialise_modulo.start
+.loop
+    LOAD_A .value
+    STORE_A make(3, hi_mid(:big_int_10_mod_10_table), %.idx)
+
+    INC_A
+    STORE_A .value
+    CMP_WITH_A 10
+    CMP_A_LT_X
+    JUMP_NZ .increment_idx
+
+    LOAD_CONSTANT 0
+    STORE_A .value
+
+.increment_idx
+    LOAD_A .idx
+    INC_A
+    STORE_A .idx
+    JUMP_NZ .loop
+}
+
+DEFINE COMMAND, BIG_INT_10_REDUCE_A_MODULO_10, {
+    LOAD_A_WITH_A hi_mid(:big_int_10_mod_10_table)
+}
+
+SECTION misc_data, {
+:big_int_10_initialise_modulo.data
+.value
+    DATA 0
+:big_int_10_args
+.alpha
+    DATA 0
+.beta
+    DATA 0
+}
+
+DEFINE COMMAND, BIG_INT_10_QUICK_ZERO, selected, {
+    LOAD_CONSTANT 0
+    STORE_A make(3, hi(:big_int_10_tables), $selected, 0)
+}
+
+SECTION functions, {
+:big_int_10_increment
+    REM Increment big int. Args: alpha, ret
+
+    LOAD_A :big_int_10_args.alpha
+    STORE_A .selected_1
+    STORE_A .selected_2
+    STORE_A .selected_3
+
+    LOAD_A make(3, hi(:big_int_10_tables), %.selected_3, 0)
+    STORE_A .starting_size_1
+
+    LOAD_CONSTANT 1
+    STORE_A .idx_1
+    STORE_A .idx_2
+
+.loop
+    REM TODO: make this pre-test
+    LOAD_A make(3, hi(:big_int_10_tables), %.selected_1, %.idx_1)
+
+    INC_A
+    BIG_INT_10_REDUCE_A_MODULO_10
+
+    STORE_A make(3, hi(:big_int_10_tables), %.selected_2, %.idx_2)
+    JUMP_NZ .done
+
+    LOAD_A .idx_1
+    INC_A
+    STORE_A .idx_1
+    STORE_A .idx_2
+
+    CMP_WITH_A %.starting_size_1
+    CMP_A_LTEQ_X
+    JUMP_NZ .loop
+
+    LOAD_A :big_int_10_args.alpha
+    STORE_A .selected_4
+    STORE_A .selected_5
+
+    LOAD_A .starting_size_1
+    INC_A
+    STORE_A make(3, hi(:big_int_10_tables), %.selected_5, 0)
+    STORE_A .idx_3
+
+    LOAD_CONSTANT 1
+    STORE_A make(3, hi(:big_int_10_tables), %.selected_4, %.idx_3)
+
+.done
+    RETURN
+
+
+:big_int_10_copy
+    REM Args: alpha (from), beta (to), dest
+
+    LOAD_A :big_int_10_args.alpha
+    STORE_A .alpha_1
+    STORE_A .alpha_2
+
+    LOAD_A :big_int_10_args.beta
+    STORE_A .beta_1
+    STORE_A .beta_2
+
+    LOAD_A make(3, hi(:big_int_10_tables), %.alpha_1, 0)
+    STORE_A .alpha_size_1
+    STORE_A make(3, hi(:big_int_10_tables), %.beta_1, 0)
+
+    LOAD_CONSTANT 1
+    STORE_A .idx_1
+    STORE_A .idx_2
+
+.loop
+    REM TODO: make this pre-test
+    LOAD_A make(3, hi(:big_int_10_tables), %.alpha_2, %.idx_1)
+    STORE_A make(3, hi(:big_int_10_tables), %.beta_2, %.idx_2)
+
+    LOAD_A .idx_1
+    INC_A
+    STORE_A .idx_1
+    STORE_A .idx_2
+
+    CMP_WITH_A %.alpha_size_1
+    CMP_A_LTEQ_X
+    JUMP_NZ .loop
+
+    RETURN
+
+
+:big_int_10_output
+    REM Output big int. Args: alpha, ret
+
+    LOAD_A :big_int_10_args.alpha
+    STORE_A .selected_1
+    STORE_A .selected_2
+
+    LOAD_A make(3, hi(:big_int_10_tables), %.selected_1, 0)
+    STORE_A .idx
+
+    UNARY_NOT_A
+    JUMP_NZ .just_one_zero
+
+.output_loop
+    LOAD_A make(3, hi(:big_int_10_tables), %.selected_2, %.idx)
+    OUTPUT_A 2
+
+    LOAD_A .idx
+    DECREMENT_A
+    STORE_A .idx
+
+    JUMP_NZ .output_loop
+    JUMP .done
+
+.just_one_zero
+    LOAD_CONSTANT 0
+    OUTPUT_A 2
+
+.done
+    OUTPUT_A 3
+    RETURN
+
+
+:big_int_10_add
+    REM Args: alpha, beta, dest. ret. alpha += beta
+
+    LOAD_A .dest
+    STORE_A .dest_2
+    STORE_A .dest_3
+
+    LOAD_A :big_int_10_args.alpha
+    STORE_A .alpha_1
+    STORE_A .alpha_2
+    LOAD_A make(3, hi(:big_int_10_tables), %.alpha_1, 0)
+    STORE_A .alpha_size_1
+
+    LOAD_A :big_int_10_args.beta
+    STORE_A .beta_1
+    STORE_A .beta_2
+    LOAD_A make(3, hi(:big_int_10_tables), %.beta_1, 0)
+    STORE_A .beta_size_1
+
+    LOAD_CONSTANT 0
+    STORE_A .idx_1
+    STORE_A .carry_val
+
+.loop
+    LOAD_A .idx_1
+    INC_A
+    STORE_A .idx_1
+    STORE_A .idx_2
+    STORE_A .idx_3
+
+    CMP_WITH_A %.alpha_size_1
+    CMP_A_LTEQ_X
+    STORE_A .alpha_not_done
+
+    LOAD_A .idx_1
+    CMP_WITH_A %.beta_size_1
+    CMP_A_LTEQ_X
+    STORE_A .beta_not_done
+
+    LOAD_A .alpha_not_done
+    JUMP_NZ .load_alpha
+    LOAD_A .beta_not_done
+    JUMP_NZ .load_alpha
+
+    REM Now alpha and bete both done
+    JUMP .done
+
+.load_alpha
+    LOAD_A make(3, hi(:big_int_10_tables), %.alpha_2, %.idx_1)
+    UNARY_MULTIPLY %.alpha_not_done
+    STORE_A .alpha_val_1
+
+    LOAD_A make(3, hi(:big_int_10_tables), %.beta_2, %.idx_2)
+    UNARY_MULTIPLY %.beta_not_done
+
+    BINARY_ADD_WITH_A %.carry_val
+    STORE_A .beta_plus_carry
+
+    BINARY_ADD_WITH_A %.alpha_val_1
+
+    BIG_INT_10_REDUCE_A_MODULO_10
+
+    STORE_A make(3, hi(:big_int_10_tables), %.dest, %.idx_3)
+
+    REM carry occurs when an operand plus prev. carry is bigger than the result
+    CMP_WITH_A %.beta_plus_carry
+    CMP_A_LT_X
+    STORE_A .carry_val
+
+    JUMP .loop
+
+.done
+    LOAD_A .carry_val
+    UNARY_NOT_A
+    JUMP_NZ .done_no_carry
+
+    LOAD_A .idx_1
+    STORE_A .idx_final_carry
+    INC_A
+    STORE_A .idx_1
+
+    LOAD_A .carry_val
+    STORE_A make(3, hi(:big_int_10_tables), %.dest_3, %.idx_final_carry)
+
+.done_no_carry
+    LOAD_A .idx_1
+    DECREMENT_A
+    STORE_A make(3, hi(:big_int_10_tables), %.dest_2, 0)
+
+    RETURN
+
+
+
+:big_int_10_set_to_lt_10
+    REM Set a big int to a value from 0 to 9. ** No input validation **
+    REM Args: alpha, value, ret
+
+    LOAD_A :big_int_10_args.alpha
+    STORE_A .selected_1
+    STORE_A .selected_2
+
+
+    LOAD_CONSTANT 1
+    STORE_A make(3, hi(:big_int_10_tables), %.selected_1, 0)
+
+    LOAD_CONSTANT %.value
+    STORE_A make(3, hi(:big_int_10_tables), %.selected_2, 1)
+
+    RETURN
+}
+
+SECTION unary_tables, {
+    ALIGN_TO 64_3
+:big_int_10_mod_10_table
+    ALLOCATE_ZEROS 64_3
+}
+
+SECTION bin_tables, {
+    ALIGN_TO 4096_3
+:big_int_10_tables
+    ALLOCATE_ZEROS 4096_3
+}

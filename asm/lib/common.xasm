@@ -3,11 +3,11 @@ ASSERT $com_pre_is_included
 INCLUDE instructions
 INCLUDE asm_control
 
-DEFINE COMMAND, HALT_LOOP, {
+DEFINE INTERNAL_COMMAND, HALT_LOOP, {
     JUMP $$
 }
 
-DEFINE COMMAND, ALIGN_TO, mask, {
+DEFINE INTERNAL_COMMAND, ALIGN_TO, mask, {
     ASSERT is_pow_of_two($mask)
     DEFINE VARIABLE, mod_val, mod($$, $mask)
 
@@ -16,9 +16,31 @@ DEFINE COMMAND, ALIGN_TO, mask, {
     }
 }
 
-DEFINE COMMAND, ALLOCATE_ZEROS, size, {
+DEFINE INTERNAL_COMMAND, ALLOCATE_ZEROS, size, {
     ASSERT not(is_eq($size, 0))
     DATA zero_extend_numeric(0_1, $size)
+}
+
+DEFINE INTERNAL_COMMAND, CALL, function_name, {
+    DEFINE VARIABLE, label_after_name, unique_identifier(call_ret_point)
+
+    LOAD_CONSTANT hi(global_label($label_after_name))
+    STORE_A global_label($function_name, ret_hi)
+
+    LOAD_CONSTANT mid(global_label($label_after_name))
+    STORE_A global_label($function_name, ret_mid)
+
+    LOAD_CONSTANT low(global_label($label_after_name))
+    STORE_A global_label($function_name, ret_low)
+
+    JUMP global_label($function_name)
+
+    DEFINE global_label, $label_after_name
+}
+
+
+DEFINE INTERNAL_COMMAND, RETURN, {
+    JUMP make(3, %.ret_hi, %.ret_mid, %.ret_low)
 }
 
 DEFINE VARIABLE, common_code_section_init, { }
@@ -50,6 +72,12 @@ DEFINE COMMAND, WRITE_SECTIONS, {
     EXECUTE $common_code_section_bin_tables
 }
 
+IF_NEEDED big_int_10, {
+    NEED addition
+    NEED unary_logic
+    NEED binary_compare
+    NEED multiplication
+}
 IF_NEEDED unary_minus, { NEED multiplication }
 IF_NEEDED multiplication, { NEED addition }
 IF_NEEDED binary_compare, { NEED addition }
@@ -74,4 +102,8 @@ IF_NEEDED multiplication, { UP {
 
 IF_NEEDED unary_minus, { UP {
     INCLUDE unary_minus
+} }
+
+IF_NEEDED big_int_10, { UP {
+    INCLUDE big_int_10
 } }

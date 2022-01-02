@@ -209,6 +209,8 @@ class InstructionMacro:
         for arg_name, arg_val in zip(self.arg_names, args):
             new_context.define_variable(arg_name, arg_val)
 
+        new_context.last_global_label = executing_context.last_global_label
+
         parser = Parser(
             assembler, self.code_block.lines, self.code_block.line_mapping,
             self.code_block.origin, traceback, self.is_internal
@@ -314,6 +316,7 @@ class Assembler:
         self.label_values: typ.Dict[str, int] = {}
         self.ip = 0
         self.primary_filename: typ.Optional[str] = None
+        self.current_uid = 0
 
     def assemble_file(self, file_name: str) -> None:
         assert self.primary_filename is None
@@ -432,6 +435,29 @@ class Assembler:
             var_name = args[1].contents
 
             ctx.define_variable(var_name, args[2])
+        elif define_type in ('LOCAL_LABEL', 'GLOBAL_LABEL'):
+            segments = []
+            if len(args) < 2:
+                raise ParseError('Need at least one arg')
+
+            for arg in args[1:]:
+                if not isinstance(arg, IdentifierValue):
+                    raise ParseError(f'Need ident, not {type(arg)}')
+
+                segments.append(arg.contents)
+
+            if ctx.last_global_label == '':
+                raise ParseError('No last gobal label')
+
+            if define_type == 'LOCAL_LABEL':
+                segments.insert(0, ctx.last_global_label)
+            elif define_type == 'GLOBAL_LABEL':
+                ctx.last_global_label = segments[0]
+            else:
+                assert False
+
+            full_label = '.'.join(segments)
+            self.declare_label(full_label)
         else:
             raise ParseError(f'Unknown define type {define_type}')
 
@@ -915,12 +941,38 @@ class Parser:
                 raise ParseError('Expected numeric value for hi_mid command')
 
             num_words = args[0].num_words
-            if num_words <= 1:
+            if num_words < 2:
                 raise ParseError('need 2 or more words for hi_mid()')
 
             return MakeResultValue([
                 ExtractedValue(args[0], 0),
                 ExtractedValue(args[0], 1)
+            ])
+        elif name == 'mid':
+            if len(args) != 1:
+                raise ParseError('Need 1 arg for mid')
+            if not isinstance(args[0], NumericValue):
+                raise ParseError('Expected numeric value for mid command')
+
+            num_words = args[0].num_words
+            if num_words < 2:
+                raise ParseError('need 2 or more words for mid()')
+
+            return MakeResultValue([
+                ExtractedValue(args[0], 1)
+            ])
+        elif name == 'low':
+            if len(args) != 1:
+                raise ParseError('Need 1 arg for low')
+            if not isinstance(args[0], NumericValue):
+                raise ParseError('Expected numeric value for low command')
+
+            num_words = args[0].num_words
+            if num_words < 3:
+                raise ParseError('need 3 or more words for low()')
+
+            return MakeResultValue([
+                ExtractedValue(args[0], 2)
             ])
         elif name == 'mod':
             num_words, values = self.get_numeric_values_from_args(2, args)
@@ -929,6 +981,25 @@ class Parser:
                 raise ParseError('mod by 0')
 
             return ConstantNumericValue(a % b, num_words)
+        elif name == 'unique_identifier':
+            if len(args) != 1 or not isinstance(args[0], IdentifierValue):
+                raise ParseError('Expected prefix identifier')
+
+            self.assembler.current_uid += 1
+            return IdentifierValue(
+                f'uid_{args[0].contents}_{self.assembler.current_uid}'
+            )
+        elif name == 'global_label':
+            if len(args) < 1:
+                raise ParseError('Need at least one arg')
+
+            segments = []
+            for arg in args:
+                if not isinstance(arg, IdentifierValue):
+                    raise ParseError('Need identifier')
+                segments.append(arg.contents)
+
+            return LabelValue('.'.join(segments))
         else:
             raise ParseError(f"Unknown method {name}")
 
@@ -1160,12 +1231,14 @@ def main() -> None:
     try:
         assembler.assemble_file(filename)
         program = assembler.link_data()
-        print(" addr | data")
+        print(f"  addr | data | {'file':^25} | line")
         for i, word in enumerate(program.data):
             if word is not None:
-                lines: typ.List[str] = []
-                word.traceback.gather_lines(lines)
-                print(f" {i:4} | {word.value:4} | {lines[-9]} | {lines[-8]}")
+                tb = word.traceback.get_deepst_non_internal()
+                print(
+                    f" {i:5} | {word.value:4} | "
+                    f"{tb.line_origin:^25} | {tb.program_line.strip()}"
+                )
     except AssemblyError as err:
         err.print_info()
 
