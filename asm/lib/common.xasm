@@ -66,6 +66,7 @@ DEFINE COMMAND, WRITE_SECTIONS, {
     JUMP :main
     EXECUTE $common_code_section_functions
     EXECUTE $common_code_section_misc_data
+    DEBUG_OUT Instruction_length, $$
     ALIGN_TO 64_3
     EXECUTE $common_code_section_unary_tables
     ALIGN_TO 4096_3

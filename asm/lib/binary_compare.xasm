@@ -54,6 +54,10 @@ SECTION unary_tables, {
     REM It's pretty wasteful to use up a whole 64 words when only 3 are needed
     REM but memory is cheap...
 
+    REM 0 - LT
+    REM 1 - EQ
+    REM 2 - GT
+
     ALIGN_TO 64_3
 :cmp_convert_eq
     DATA 0, 1, 0

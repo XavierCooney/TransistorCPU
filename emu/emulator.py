@@ -26,6 +26,7 @@ class Emulator:
 
         self.verbose = verbose
         self.outputs: typ.List[typ.Union[int, str]] = []
+        self.partial_output: typ.List[str] = []
 
         OutputHandlerType = typ.Callable[[typ.Union[str, int]], None]
         self.output_handler: OutputHandlerType = lambda data: None
@@ -156,9 +157,10 @@ class Emulator:
             elif output_type == 1:
                 self.perform_output(self.a_register)
             elif output_type == 2:
-                self.perform_output(self.a_register)
+                self.partial_output.append(str(self.a_register))
             elif output_type == 3:
-                self.perform_output('    ')
+                self.perform_output(''.join(self.partial_output))
+                self.partial_output = []
             else:
                 assert False
         elif opcode & 0b000001:

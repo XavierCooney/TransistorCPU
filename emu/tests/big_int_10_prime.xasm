@@ -1,0 +1,91 @@
+INCLUDE common_pre
+NEED big_int_10
+INCLUDE common
+
+    JUMP :initialise
+:main
+    REM this is SUPER inefficient but it works...
+    REM 1 - divisor
+    REM 2 - addition destination
+    REM 3 - multiple of divisor
+    REM 4 - candidate prime
+
+    REM candidate = 2
+    BIG_INT_10_SET_ALPHA 4
+    LOAD_CONSTANT 2
+    STORE_A :big_int_10_set_to_lt_10.value
+    CALL big_int_10_set_to_lt_10
+
+.outer_loop
+    REM divisor = 2
+    BIG_INT_10_SET_ALPHA 1
+    LOAD_CONSTANT 2
+    STORE_A :big_int_10_set_to_lt_10.value
+    CALL big_int_10_set_to_lt_10
+
+.middle_loop
+    REM while divisor < candidate
+    BIG_INT_10_SET_ALPHA 1
+    BIG_INT_10_SET_BETA 4
+    CALL big_int_10_cmp
+    CMP_X_GTEQ_Y
+    JUMP_NZ .is_prime
+
+    REM multiple = 0
+    BIG_INT_10_SET_ALPHA 3
+    LOAD_CONSTANT 0
+    STORE_A :big_int_10_set_to_lt_10.value
+    CALL big_int_10_set_to_lt_10
+
+.inner_loop
+    REM while multiple < candidate
+    BIG_INT_10_SET_ALPHA 3
+    BIG_INT_10_SET_BETA 4
+    CALL big_int_10_cmp
+    CMP_X_GTEQ_Y
+    JUMP_NZ .multiple_adding_done
+
+    REM dest = multiple + divisor
+    LOAD_CONSTANT 2
+    STORE_A :big_int_10_add.dest
+    BIG_INT_10_SET_ALPHA 3
+    BIG_INT_10_SET_BETA 1
+    CALL big_int_10_add
+
+    REM multiple = dest
+    BIG_INT_10_SET_ALPHA 2
+    BIG_INT_10_SET_BETA 3
+    CALL big_int_10_copy
+
+    JUMP .inner_loop
+
+.multiple_adding_done
+    REM if multiple == candidate:
+    BIG_INT_10_SET_ALPHA 3
+
+    BIG_INT_10_SET_BETA 4
+    CALL big_int_10_cmp
+    CMP_X_EQ_Y
+    JUMP_NZ .not_prime
+
+    REM divisor += 1
+    BIG_INT_10_SET_ALPHA 1
+    CALL big_int_10_increment
+
+    JUMP .middle_loop
+
+
+.is_prime
+    BIG_INT_10_SET_ALPHA 4
+    CALL big_int_10_output
+
+.not_prime
+
+    BIG_INT_10_SET_ALPHA 4
+    CALL big_int_10_increment
+
+    JUMP .outer_loop
+
+    HALT_LOOP
+
+    WRITE_SECTIONS

@@ -1,6 +1,8 @@
 REM Big int with base 10. This is pretty inefficient in terms of meory
 REM usage (~16% utilisation), but who needs to count to 10^64 anyway?
 
+REM TODO: The Art of Computer Programming volume 2 4.3
+
 SECTION init, {
 :big_int_10_initialise_modulo.start
 .loop
@@ -255,6 +257,61 @@ SECTION functions, {
     RETURN
 
 
+:big_int_10_cmp
+    REM set A to comparison result of alpha and beta
+
+    LOAD_A :big_int_10_args.alpha
+    STORE_A .alpha_1
+    STORE_A .alpha_2
+
+    LOAD_A :big_int_10_args.beta
+    STORE_A .beta_1
+    STORE_A .beta_2
+
+    LOAD_A make(3, hi(:big_int_10_tables), %.alpha_1, 0)
+    STORE_A .alpha_size_1
+    STORE_A .alpha_size_2
+    LOAD_A make(3, hi(:big_int_10_tables), %.beta_1, 0)
+    STORE_A .beta_size_1
+
+    CMP %.alpha_size_1, %.beta_size_1
+    DECREMENT_A
+    JUMP_NZ .different
+
+    LOAD_CONSTANT %.alpha_size_2
+    STORE_A .idx_1
+    STORE_A .idx_2
+    STORE_A .idx_3
+
+.loop
+    CMP %.idx_1, 0
+    CMP_X_EQ_Y
+    JUMP_NZ .return
+
+    LOAD_A make(3, hi(:big_int_10_tables), %.alpha_2, %.idx_2)
+    STORE_A .alpha_val
+    LOAD_A make(3, hi(:big_int_10_tables), %.beta_2, %.idx_3)
+    STORE_A .beta_val
+
+    CMP %.alpha_val, %.beta_val
+    DECREMENT_A
+    JUMP_NZ .different
+
+    LOAD_A .idx_1
+    DECREMENT_A
+    STORE_A .idx_1
+    STORE_A .idx_2
+    STORE_A .idx_3
+
+    JUMP .loop
+
+
+.different
+    INC_A
+
+.return
+    RETURN
+
 
 :big_int_10_set_to_lt_10
     REM Set a big int to a value from 0 to 9. ** No input validation **
@@ -284,4 +341,14 @@ SECTION bin_tables, {
     ALIGN_TO 4096_3
 :big_int_10_tables
     ALLOCATE_ZEROS 4096_3
+}
+
+DEFINE COMMAND, BIG_INT_10_SET_ALPHA, val, {
+    LOAD_CONSTANT $val
+    STORE_A :big_int_10_args.alpha
+}
+
+DEFINE COMMAND, BIG_INT_10_SET_BETA, val, {
+    LOAD_CONSTANT $val
+    STORE_A :big_int_10_args.beta
 }
